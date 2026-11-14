@@ -925,12 +925,12 @@ fn measure_pie(img: &RgbaImage, xa: u32, xb: u32, y0: u32, y1: u32, yc: f32, col
 /// niveau (gemeten op 2560×1440, Ajax- en Sunderland-save): 20–40 % oranje (tint ~43°), 50–70 %
 /// geel (~60°), 90 % groen (~120°); 40 % kan ook geel zijn. De grenzen hier zijn ruim genomen.
 fn color_band(hue: f32) -> (f32, f32) {
-    if hue < 50.0 {
-        (0.0, 0.5)
+    if hue < 45.0 {
+        (0.0, 0.65)
     } else if hue < 90.0 {
         (0.3, 0.9)
     } else {
-        (0.7, 1.0)
+        (0.65, 1.0)
     }
 }
 
