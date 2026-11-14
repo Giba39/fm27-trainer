@@ -295,14 +295,22 @@ impl App {
                     self.auto_note = t!("wacht op de Breakdown in FM", "waiting for the Breakdown in FM", "aguardando a tela de Detalhamento no FM").to_string();
                 }
                 Ok((a, _)) if auto && same_values(&self.eff, &a.to_effectiveness("")) => {
-                    self.auto_note = t!(format!("geen verandering ({})", chrono::Local::now().format("%H:%M:%S")), format!("no change ({})", chrono::Local::now().format("%H:%M:%S"))).to_string();
+                    self.auto_note = t!(
+                        format!("geen verandering ({})", chrono::Local::now().format("%H:%M:%S")),
+                        format!("no change ({})", chrono::Local::now().format("%H:%M:%S")),
+                        format!("sem alteração ({})", chrono::Local::now().format("%H:%M:%S"))
+                    ).to_string();
                 }
                 Err(_) if auto => {
                     self.auto_note = t!("wacht op de Breakdown in FM", "waiting for the Breakdown in FM", "aguardando a tela de Detalhamento no FM").to_string();
                 }
                 Ok((a, src)) => {
                     if auto {
-                        self.auto_note = t!(format!("bijgewerkt ({})", chrono::Local::now().format("%H:%M:%S")), format!("updated ({})", chrono::Local::now().format("%H:%M:%S"))).to_string();
+                        self.auto_note = t!(
+                            format!("bijgewerkt ({})", chrono::Local::now().format("%H:%M:%S")),
+                            format!("updated ({})", chrono::Local::now().format("%H:%M:%S")),
+                            format!("atualizado ({})", chrono::Local::now().format("%H:%M:%S"))
+                        ).to_string();
                     }
                     let src_is_screen = src == t!("FM27-scherm", "FM27 screen", "Tela do FM27");
                     let when = chrono::Local::now().format("%d-%m %H:%M");
@@ -363,19 +371,19 @@ impl App {
                     ui.vertical(|ui| {
                         ui.add_space(1.0);
                         ui.label(RichText::new("FM27 Trainer").font(egui::FontId::new(16.0, theme::bold())).color(theme::TEXT));
-                        ui.label(theme::faint("Tactical Effectiveness"));
+                        ui.label(theme::faint(t!("Tactische Effectiviteit", "Tactical Effectiveness", "Eficácia Tática")));
                     });
                 });
                 ui.add_space(22.0);
-                ui.label(theme::caps("Menu"));
+                ui.label(theme::caps(t!("Menu", "Menu", "Menu")));
                 ui.add_space(4.0);
                 let items = [
                     (Page::Overview, icon::GAUGE, t!("Overzicht", "Overview", "Visão Geral")),
-                    (Page::Training, icon::BARBELL, "Training"),
-                    (Page::Planning, icon::CALENDAR_DOTS, "Planning"),
-                    (Page::Club, icon::BANK, "Club"),
+                    (Page::Training, icon::BARBELL, t!("Training", "Training", "Treino")),
+                    (Page::Planning, icon::CALENDAR_DOTS, t!("Planning", "Planning", "Planejamento")),
+                    (Page::Club, icon::BANK, t!("Club", "Club", "Clube")),
                     (Page::Squad, icon::USERS_THREE, t!("Selectie", "Squad", "Elenco")),
-                    (Page::Sell, icon::HANDSHAKE, "Transfers"),
+                    (Page::Sell, icon::HANDSHAKE, t!("Transfers", "Transfers", "Transferências")),
                     (Page::Settings, icon::GEAR_SIX, t!("Instellingen", "Settings", "Configurações")),
                 ];
                 for (p, ic, label) in items {
@@ -492,14 +500,18 @@ impl App {
 
     fn page_overview(&mut self, ui: &mut Ui, ctx: &egui::Context) {
         let subtitle = if self.has_data() {
-            t!(format!("Laatst uitgelezen: {}", self.eff.source), format!("Last read: {}", self.eff.source))
+            t!(
+                format!("Laatst uitgelezen: {}", self.eff.source),
+                format!("Last read: {}", self.eff.source),
+                format!("Última leitura: {}", self.eff.source)
+            )
         } else {
             t!("Open in FM27 de Breakdown van Tactical Effectiveness en lees hem uit.", "Open the Tactical Effectiveness Breakdown in FM27 and read it.", "Abra o Detalhamento de Eficácia Tática no FM27 e faça a leitura.").to_string()
         };
         let busy = self.analysis_rx.is_some();
         let mut read = false;
         let mut file = false;
-        theme::page_header(ui, "Tactical Effectiveness", &subtitle, |ui| {
+        theme::page_header(ui, t!("Tactische Effectiviteit", "Tactical Effectiveness", "Eficácia Tática"), &subtitle, |ui| {
             if theme::button(ui, icon::EXPORT, t!("Uit bestand", "From file", "Do arquivo"), !busy).clicked() {
                 file = true;
             }
@@ -685,7 +697,7 @@ impl App {
                         ui.spacing_mut().item_spacing.x = 36.0;
                         let last = self.live.last_check.map(|t| t.format("%H:%M:%S").to_string()).unwrap_or_else(|| "—".into());
                         theme::mini_stat(ui, t!("Laatste controle", "Last check", "Última verificação"), &last);
-                        theme::mini_stat(ui, t!("Teruggezet (deze sessie)", "Restored (this session)", "Restaurados (nesta sessão)"), &t!(format!("{} dagen", self.live.fixed_total), format!("{} days", self.live.fixed_total)));
+                        theme::mini_stat(ui, t!("Teruggezet (deze sessie)", "Restored (this session)", "Restaurados (nesta sessão)"), &t!(format!("{} dagen", self.live.fixed_total), format!("{} days", self.live.fixed_total), format!("{} dias", self.live.fixed_total)));
                         let d = self.live.training.as_ref().and_then(|o| o.today).map(i18n::date).unwrap_or_else(|| "—".into());
                         theme::mini_stat(ui, t!("Spel-datum", "Game date", "Data no jogo"), &d);
                     });
@@ -708,8 +720,16 @@ impl App {
                 } else {
                     match age_weeks {
                         Some(0) => t!("Uitgelezen deze week (speltijd).", "Read this week (game time).", "Lido esta semana (tempo de jogo).").to_string(),
-                        Some(w) => t!(format!("Uitgelezen {w} weken geleden (speltijd)."), format!("Read {w} weeks ago (game time).")),
-                        None => t!(format!("Uitgelezen: {}", self.eff.source), format!("Read: {}", self.eff.source)),
+                        Some(w) => t!(
+                            format!("Uitgelezen {w} weken geleden (speltijd)."),
+                            format!("Read {w} weeks ago (game time)."),
+                            format!("Lido há {w} semanas (tempo de jogo).")
+                        ),
+                        None => t!(
+                            format!("Uitgelezen: {}", self.eff.source),
+                            format!("Read: {}", self.eff.source),
+                            format!("Lido: {}", self.eff.source)
+                        ),
                     }
                 };
                 ui.label(if stale { RichText::new(txt).color(theme::WARNING) } else { theme::dim(txt) });
@@ -910,7 +930,7 @@ impl App {
                         self.after_export(r);
                     }
                     let (n, u) = (self.year.len(), unique_schedules(&self.year).len());
-                    ui.label(theme::faint(t!(format!("{n} weken · {u} verschillende weekschema's"), format!("{n} weeks · {u} distinct weekly schedules"))));
+                    ui.label(theme::faint(t!(format!("{n} weken · {u} verschillende weekschema's"), format!("{n} weeks · {u} distinct weekly schedules"), format!("{n} semanas · {u} cronogramas semanais diferentes"))));
                 }
             });
         });
@@ -960,7 +980,7 @@ impl App {
         match res {
             Ok(p) => {
                 open_path(&p);
-                self.set_status(t!(format!("Opgeslagen: {}", p.display()), format!("Saved: {}", p.display())), false);
+                self.set_status(t!(format!("Opgeslagen: {}", p.display()), format!("Saved: {}", p.display()), format!("Salvo: {}", p.display())), false);
             }
             Err(e) => self.set_status(format!("{e:#}"), true),
         }
@@ -989,7 +1009,7 @@ impl App {
         );
         if backup {
             match agent::backup_saves() {
-                Ok(d) => self.live.status = t!(format!("Backup gemaakt: {}", d.display()), format!("Backup created: {}", d.display())),
+                Ok(d) => self.live.status = t!(format!("Backup gemaakt: {}", d.display()), format!("Backup created: {}", d.display()), format!("Backup criado: {}", d.display())),
                 Err(e) => self.live.status = format!("{e:#}"),
             }
         }
@@ -1064,7 +1084,8 @@ impl App {
         ui.add_space(8.0);
         ui.label(theme::faint(t!(
             format!("FM rekent intern in ponden; euro's zijn omgerekend met koers {rate:.2} (aan te passen bij Instellingen)."),
-            format!("FM stores pounds internally; euros use rate {rate:.2} (change it in Settings).")
+            format!("FM stores pounds internally; euros use rate {rate:.2} (change it in Settings)."),
+            format!("O FM armazena internamente em libras; os euros usam a cotação {rate:.2} (altere em Configurações).")
         )));
         ui.add_space(12.0);
         // de vlaggen van FM's in-game editor op je manager: registratie en rugnummers altijd
@@ -1116,7 +1137,11 @@ impl App {
         let mut action: Option<(String, Value)> = None;
         let mut sell: Option<u32> = None;
         let n = self.live.squad.len();
-        let subtitle = t!(format!("{n} spelers · {injured} geblesseerd · {banned} geschorst"), format!("{n} players · {injured} injured · {banned} suspended"));
+        let subtitle = t!(
+            format!("{n} spelers · {injured} geblesseerd · {banned} geschorst"),
+            format!("{n} players · {injured} injured · {banned} suspended"),
+            format!("{n} jogadores · {injured} lesionados · {banned} suspensos")
+        );
         theme::page_header(ui, t!("Selectie", "Squad", "Elenco"), &subtitle, |ui| {
             if theme::button(ui, icon::SMILEY, t!("Moraal top voor iedereen", "Max morale for all", "Moral máxima para todos"), connected && !busy).clicked() {
                 action = Some((t!("moraal", "morale", "moral").into(), json!({"cmd": "inspire", "morale": 20, "clear_unhappiness": true})));
@@ -1124,7 +1149,11 @@ impl App {
             if theme::button(ui, icon::WARNING, t!("Schorsingen opheffen", "Lift suspensions", "Anular suspensões"), connected && !busy && banned > 0).clicked() {
                 action = Some((t!("schorsingen", "suspensions", "suspensões").into(), json!({"cmd": "lift_bans"})));
             }
-            let heal = t!(format!("Genees iedereen ({injured})"), format!("Heal all ({injured})"));
+            let heal = t!(
+                format!("Genees iedereen ({injured})"),
+                format!("Heal all ({injured})"),
+                format!("Curar todos ({injured})")
+            );
             if theme::primary_button(ui, icon::FIRST_AID, &heal, connected && !busy && injured > 0).clicked() {
                 action = Some((t!("genezen", "healing", "curando").into(), json!({"cmd": "heal"})));
             }
@@ -1182,7 +1211,8 @@ impl App {
                     if without > 0 {
                         ui.label(theme::faint(t!(
                             format!("{without} spelers hebben nog geen begrip-record (nog niet met dit team getraind); die doen pas na een week training mee."),
-                            format!("{without} players have no understanding record yet (not trained with this team yet); they join after a week of training.")
+                            format!("{without} players have no understanding record yet (not trained with this team yet); they join after a week of training."),
+                            format!("{without} jogadores ainda não têm registro de compreensão (ainda não treinaram com esta equipe); eles participarão após uma semana de treinos.")
                         )));
                     }
                 }
@@ -1452,7 +1482,8 @@ impl App {
                     let label = match (&chosen, &self.live.sell.club) {
                         (Some(p), Some((_, c))) => t!(
                             format!("Verkoop {} aan {}", p.get("name").and_then(|v| v.as_str()).unwrap_or("?"), c),
-                            format!("Sell {} to {}", p.get("name").and_then(|v| v.as_str()).unwrap_or("?"), c)
+                            format!("Sell {} to {}", p.get("name").and_then(|v| v.as_str()).unwrap_or("?"), c),
+                            format!("Vender {} para {}", p.get("name").and_then(|v| v.as_str()).unwrap_or("?"), c)
                         ),
                         _ => t!("Verkoop", "Sell", "Vender").to_string(),
                     };
@@ -1471,19 +1502,33 @@ impl App {
                         let b = |n: &str| v.get(n).and_then(|x| x.as_bool()).unwrap_or(false);
                         let mut lines = vec![t!(
                             format!("{} gaat naar {} voor {}.", s("player"), s("to"), eur(i("fee"))),
-                            format!("{} moves to {} for {}.", s("player"), s("to"), eur(i("fee")))
+                            format!("{} moves to {} for {}.", s("player"), s("to"), eur(i("fee"))),
+                            format!("{} vai para {} por {}.", s("player"), s("to"), eur(i("fee")))
                         )];
                         lines.push(if b("buyer_pays") {
-                            t!(format!("{} betaalt uit saldo en transferbudget.", s("to")), format!("{} pays from its balance and transfer budget.", s("to")))
+                            t!(
+                                format!("{} betaalt uit saldo en transferbudget.", s("to")),
+                                format!("{} pays from its balance and transfer budget.", s("to")),
+                                format!("{} paga com saldo e orçamento de transferências.", s("to"))
+                            )
                         } else {
-                            t!(format!("{} heeft geen volledige financiën in je save: alleen jij krijgt het geld.", s("to")), format!("{} has no full finances in your save: only you receive the money.", s("to")))
+                            t!(
+                                format!("{} heeft geen volledige financiën in je save: alleen jij krijgt het geld.", s("to")),
+                                format!("{} has no full finances in your save: only you receive the money.", s("to")),
+                                format!("{} não possui finanças completas no seu save: apenas você recebe o dinheiro.", s("to"))
+                            )
                         });
                         lines.push(t!(
                             format!("Jouw saldo wordt {} en je transferbudget {}.", eur(i("balance_after")), eur(i("transfer_budget_after"))),
-                            format!("Your balance becomes {} and your transfer budget {}.", eur(i("balance_after")), eur(i("transfer_budget_after")))
+                            format!("Your balance becomes {} and your transfer budget {}.", eur(i("balance_after")), eur(i("transfer_budget_after"))),
+                            format!("Seu saldo será {} e seu orçamento de transferências {}.", eur(i("balance_after")), eur(i("transfer_budget_after")))
                         ));
                         if i("selections") > 0 {
-                            lines.push(t!(format!("Zijn plek in {} opstelling(en) wordt leeg.", i("selections")), format!("His place in {} selection(s) is emptied.", i("selections"))));
+                            lines.push(t!(
+                                format!("Zijn plek in {} opstelling(en) wordt leeg.", i("selections")),
+                                format!("His place in {} selection(s) is emptied.", i("selections")),
+                                format!("A vaga dele em {} escalação(ões) ficará vazia.", i("selections"))
+                            ));
                         }
                         if b("was_captain") {
                             lines.push(t!("Hij was aanvoerder: de band is vrij voor iemand anders.", "He was captain: the armband is free for someone else.", "Ele era o capitão: a braçadeira agora está vaga para outro jogador.").into());
@@ -1594,7 +1639,7 @@ impl App {
                         ui.label(theme::faint(t!("Kies eerst een club.", "Choose a club first.", "Escolha um clube primeiro.")));
                     }
                     Some((_, name)) => {
-                        ui.label(theme::faint(t!(format!("Eerste elftal van {name}, duurste eerst."), format!("First team of {name}, most valuable first."))));
+                        ui.label(theme::faint(t!(format!("Eerste elftal van {name}, duurste eerst."), format!("First team of {name}, most valuable first."), format!("Equipe principal de {name}, mais valiosos primeiro."))));
                         if squad.is_empty() && self.live.sell_busy() {
                             ui.spinner();
                         }
@@ -1665,7 +1710,8 @@ impl App {
                     let label = match (&chosen, &club) {
                         (Some(p), Some((_, c))) => t!(
                             format!("Koop {} van {}", p.get("name").and_then(|v| v.as_str()).unwrap_or("?"), c),
-                            format!("Buy {} from {}", p.get("name").and_then(|v| v.as_str()).unwrap_or("?"), c)
+                            format!("Buy {} from {}", p.get("name").and_then(|v| v.as_str()).unwrap_or("?"), c),
+                            format!("Comprar {} de {}", p.get("name").and_then(|v| v.as_str()).unwrap_or("?"), c)
                         ),
                         _ => t!("Koop", "Buy", "Comprar").to_string(),
                     };
@@ -1684,19 +1730,33 @@ impl App {
                         let b = |n: &str| v.get(n).and_then(|x| x.as_bool()).unwrap_or(false);
                         let mut lines = vec![t!(
                             format!("{} komt van {} naar jouw eerste elftal voor {}.", s("player"), s("from"), eur(i("fee"))),
-                            format!("{} moves from {} to your first team for {}.", s("player"), s("from"), eur(i("fee")))
+                            format!("{} moves from {} to your first team for {}.", s("player"), s("from"), eur(i("fee"))),
+                            format!("{} vem de {} para sua equipe principal por {}.", s("player"), s("from"), eur(i("fee")))
                         )];
                         lines.push(if b("buyer_pays") {
-                            t!(format!("{} ontvangt het geld op saldo en transferbudget.", s("from")), format!("{} receives the money on its balance and transfer budget.", s("from")))
+                            t!(
+                                format!("{} ontvangt het geld op saldo en transferbudget.", s("from")),
+                                format!("{} receives the money on its balance and transfer budget.", s("from")),
+                                format!("{} recebe o dinheiro no saldo e orçamento de transferências.", s("from"))
+                            )
                         } else {
-                            t!(format!("{} heeft geen volledige financiën in je save: alleen jij betaalt.", s("from")), format!("{} has no full finances in your save: only you pay.", s("from")))
+                            t!(
+                                format!("{} heeft geen volledige financiën in je save: alleen jij betaalt.", s("from")),
+                                format!("{} has no full finances in your save: only you pay.", s("from")),
+                                format!("{} não possui finanças completas no seu save: apenas você paga.", s("from"))
+                            )
                         });
                         lines.push(t!(
                             format!("Jouw saldo wordt {} en je transferbudget {}.", eur(i("balance_after")), eur(i("transfer_budget_after"))),
-                            format!("Your balance becomes {} and your transfer budget {}.", eur(i("balance_after")), eur(i("transfer_budget_after")))
+                            format!("Your balance becomes {} and your transfer budget {}.", eur(i("balance_after")), eur(i("transfer_budget_after"))),
+                            format!("Seu saldo será {} e seu orçamento de transferências {}.", eur(i("balance_after")), eur(i("transfer_budget_after")))
                         ));
                         if b("was_captain") {
-                            lines.push(t!(format!("Hij was aanvoerder bij {}; die band wordt daar vrij.", s("from")), format!("He was captain at {}; that armband becomes free there.", s("from"))));
+                            lines.push(t!(
+                                format!("Hij was aanvoerder bij {}; die band wordt daar vrij.", s("from")),
+                                format!("He was captain at {}; that armband becomes free there.", s("from")),
+                                format!("Ele era capitão no(a) {}; a braçadeira ficará vaga lá.", s("from"))
+                            ));
                         }
                         if !b("allowed") {
                             lines.push(t!("Deze FM-versie is niet getest: sta aanpassen eerst toe in Instellingen.", "This FM build is untested: allow changes in Settings first.", "Esta versão do FM não foi testada: permita alterações nas Configurações primeiro.").into());
@@ -1809,7 +1869,8 @@ impl App {
                 });
                 ui.add(egui::Label::new(theme::dim(t!(
                     "FM27 Trainer past alleen iets aan op FM-versies die het kent (Steam op Windows en Mac, Game Pass / Xbox-app op Windows). Op andere versies (na een FM-update, of bijvoorbeeld Epic) staat de app op alleen lezen. Kloppen club, budget en selectie in de app met wat FM laat zien? Dan kun je aanpassen hier toestaan. Elke wijziging wordt eerst gecontroleerd, kan ongedaan worden gemaakt en blijft pas bewaard als je in FM opslaat. Maak eerst een backup van je save.",
-                    "FM27 Trainer only changes things on FM builds it knows (Steam on Windows and Mac, Game Pass / Xbox app on Windows). On other builds (after an FM update, or Epic for example) the app is read-only. Do club, budget and squad in the app match what FM shows? Then you can allow changes here. Every change is checked first, can be undone and only sticks once you save in FM. Back up your save first."
+                    "FM27 Trainer only changes things on FM builds it knows (Steam on Windows and Mac, Game Pass / Xbox app on Windows). On other builds (after an FM update, or Epic for example) the app is read-only. Do club, budget and squad in the app match what FM shows? Then you can allow changes here. Every change is checked first, can be undone and only sticks once you save in FM. Back up your save first.",
+                    "O FM27 Trainer só faz alterações em versões do FM que conhece (Steam no Windows e Mac, Game Pass / Xbox app no Windows). Em outras versões (após uma atualização do FM, ou por exemplo Epic), o app fica em modo somente leitura. O clube, orçamento e elenco no app conferem com o que o FM mostra? Então você pode permitir alterações aqui. Cada alteração é verificada primeiro, pode ser desfeita e só se torna definitiva quando você salvar no FM. Faça um backup do seu jogo salvo primeiro."
                 )))
                 .wrap());
                 if self.live.connected {
@@ -1856,7 +1917,8 @@ impl App {
             ui.label(theme::h2(t!("Over", "About", "Sobre")));
             ui.add(egui::Label::new(theme::dim(t!(
                 "Sessienamen, limieten en presets komen uit FM27's eigen game-data. De module leest en schrijft alleen na controle, met undo. Alleen voor single-player. Lettertype: Inter (SIL OFL). Iconen: Phosphor (MIT).",
-                "Session names, limits and presets come from FM27's own game data. The module only reads and writes after checks, with undo. Single-player only. Font: Inter (SIL OFL). Icons: Phosphor (MIT)."
+                "Session names, limits and presets come from FM27's own game data. The module only reads and writes after checks, with undo. Single-player only. Font: Inter (SIL OFL). Icons: Phosphor (MIT).",
+                "Nomes de sessões, limites e predefinições vêm dos dados do próprio FM27. O módulo apenas lê e grava após verificações, com opção de desfazer. Exclusivo para um jogador. Fonte: Inter (SIL OFL). Ícones: Phosphor (MIT)."
             )))
             .wrap());
         });
@@ -1992,18 +2054,34 @@ fn codes_text(c: &[u16; 3]) -> String {
 fn week_card(ui: &mut Ui, w: &live_training::WeekPreview, today: Option<NaiveDate>, fm_had: &std::collections::HashMap<NaiveDate, [u16; 3]>) {
     theme::card(ui, |ui| {
         ui.horizontal(|ui| {
-            ui.label(theme::h2(t!(format!("Week van {}", i18n::date_short(w.start)), format!("Week of {}", i18n::date_short(w.start)))));
+            ui.label(theme::h2(t!(
+                format!("Week van {}", i18n::date_short(w.start)),
+                format!("Week of {}", i18n::date_short(w.start)),
+                format!("Semana de {}", i18n::date_short(w.start))
+            )));
             if w.rest {
                 theme::pill(ui, t!("Rustweek: blijft van FM", "Rest week: kept from FM", "Semana de descanso: mantida do FM"), theme::WARNING);
                 return;
             }
-            theme::pill(ui, &t!(format!("{} wedstrijd(en)", w.matches), format!("{} match(es)", w.matches)), theme::DANGER);
+            theme::pill(ui, &t!(
+                format!("{} wedstrijd(en)", w.matches),
+                format!("{} match(es)", w.matches),
+                format!("{} partida(s)", w.matches)
+            ), theme::DANGER);
             theme::pill(ui, &w.focus, theme::ACCENT);
             let pending = (0..7).filter(|d| w.current[*d] != w.planned[*d]).count();
             if w.written > 0 {
-                theme::pill(ui, &t!(format!("{} dagen teruggezet", w.written), format!("{} days restored", w.written)), theme::SUCCESS);
+                theme::pill(ui, &t!(
+                    format!("{} dagen teruggezet", w.written),
+                    format!("{} days restored", w.written),
+                    format!("{} dias restaurados", w.written)
+                ), theme::SUCCESS);
             } else if pending > 0 {
-                theme::pill(ui, &t!(format!("{pending} dagen wijken af van je plan"), format!("{pending} days differ from your plan")), theme::WARNING);
+                theme::pill(ui, &t!(
+                    format!("{pending} dagen wijken af van je plan"),
+                    format!("{pending} days differ from your plan"),
+                    format!("{pending} dias diferem do seu plano")
+                ), theme::WARNING);
             } else {
                 theme::pill(ui, t!("volgens plan", "on plan", "conforme o plano"), theme::SUCCESS);
             }
@@ -2030,7 +2108,8 @@ fn week_card(ui: &mut Ui, w: &live_training::WeekPreview, today: Option<NaiveDat
                     ui.add(egui::Label::new(RichText::new(format!("FM: {}", codes_text(&h))).size(10.5).color(theme::TEXT_FAINT).strikethrough()).truncate())
                         .on_hover_text(t!(
                             format!("FM had ingepland: {}", codes_text(&h)),
-                            format!("FM had planned: {}", codes_text(&h))
+                            format!("FM had planned: {}", codes_text(&h)),
+                            format!("O FM havia planejado: {}", codes_text(&h))
                         ));
                 }
             }

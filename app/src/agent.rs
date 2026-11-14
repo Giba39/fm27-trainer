@@ -30,7 +30,7 @@ fn socket_path() -> PathBuf {
 
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn request(_req: Value) -> Result<Value> {
-    bail!("{}", crate::t!("Live-functies zijn niet beschikbaar op dit systeem.", "Live features are not available on this system."))
+    bail!("{}", crate::t!("Live-functies zijn niet beschikbaar op dit systeem.", "Live features are not available on this system.", "Recursos ao vivo não estão disponíveis neste sistema."))
 }
 
 /// Voert één opdracht uit tegen fm.exe.
@@ -61,7 +61,8 @@ pub fn module_ready() -> bool {
 pub fn request(req: Value) -> Result<Value> {
     let mut s = UnixStream::connect(socket_path()).context(crate::t!(
         "module niet bereikbaar (draait FM27 met de module?)",
-        "module not reachable (is FM27 running with the module?)"
+        "module not reachable (is FM27 running with the module?)",
+        "módulo inacessível (o FM27 está aberto com o módulo?)"
     ))?;
     s.set_read_timeout(Some(Duration::from_secs(120)))?;
     writeln!(s, "{req}")?;
@@ -130,7 +131,7 @@ fn agent_source() -> Option<PathBuf> {
 
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn start_fm() -> Result<String> {
-    bail!("{}", crate::t!("Live-functies zijn niet beschikbaar op dit systeem.", "Live features are not available on this system."))
+    bail!("{}", crate::t!("Live-functies zijn niet beschikbaar op dit systeem.", "Live features are not available on this system.", "Recursos ao vivo não estão disponíveis neste sistema."))
 }
 
 /// Windows: FM27 gewoon via Steam starten; de app leest het proces van buitenaf.
@@ -138,7 +139,7 @@ pub fn start_fm() -> Result<String> {
 pub fn start_fm() -> Result<String> {
     use std::os::windows::process::CommandExt;
     if fm_running() {
-        return Ok(crate::t!("FM27 draait al. Laad je save; de app verbindt vanzelf.", "FM27 is already running. Load your save; the app connects automatically.").into());
+        return Ok(crate::t!("FM27 draait al. Laad je save; de app verbindt vanzelf.", "FM27 is already running. Load your save; the app connects automatically.", "O FM27 já está aberto. Carregue seu jogo salvo; o app conectará automaticamente.").into());
     }
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     Command::new("cmd")
@@ -150,7 +151,8 @@ pub fn start_fm() -> Result<String> {
         .spawn()?;
     Ok(crate::t!(
         "FM27 wordt gestart via Steam. Laad je save; de app verbindt vanzelf.",
-        "FM27 is starting through Steam. Load your save; the app connects automatically."
+        "FM27 is starting through Steam. Load your save; the app connects automatically.",
+        "O FM27 está sendo iniciado pelo Steam. Carregue seu jogo salvo; o app conectará automaticamente."
     )
     .into())
 }
@@ -159,7 +161,7 @@ pub fn start_fm() -> Result<String> {
 #[cfg(target_os = "macos")]
 pub fn start_fm() -> Result<String> {
     if fm_running() {
-        bail!("{}", crate::t!("FM27 draait al. Sla je spel op, sluit FM27 en probeer opnieuw.", "FM27 is already running. Save your game, quit FM27 and try again."));
+        bail!("{}", crate::t!("FM27 draait al. Sla je spel op, sluit FM27 en probeer opnieuw.", "FM27 is already running. Save your game, quit FM27 and try again.", "O FM27 já está aberto. Salve seu jogo, feche o FM27 e tente novamente."));
     }
     let exe = fm_executable().ok_or_else(|| anyhow!("Football Manager 27 not found"))?;
     let src = agent_source().ok_or_else(|| anyhow!("libfm27_agent.dylib not found next to the app"))?;
@@ -193,7 +195,8 @@ pub fn start_fm() -> Result<String> {
         .context("start FM27")?;
     Ok(crate::t!(
         "FM27 wordt gestart met de module. Laad je save; de app verbindt vanzelf.",
-        "FM27 is starting with the module. Load your save; the app connects automatically."
+        "FM27 is starting with the module. Load your save; the app connects automatically.",
+        "O FM27 está sendo iniciado com o módulo. Carregue seu jogo salvo; o app conectará automaticamente."
     )
     .into())
 }

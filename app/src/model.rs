@@ -23,10 +23,10 @@ impl Component {
     /// Titel zoals in FM27.
     pub fn label(self) -> &'static str {
         match self {
-            Component::TacticalUnderstanding => "Tactical Understanding",
-            Component::PlayerAbility => "Player Ability",
-            Component::PlayerBuyIn => "Player Buy-In",
-            Component::NextMatchInfo => "Next Match Info",
+            Component::TacticalUnderstanding => crate::t!("Tactisch begrip", "Tactical Understanding", "Compreensão Tática"),
+            Component::PlayerAbility => crate::t!("Spelerskwaliteit", "Player Ability", "Habilidade do Jogador"),
+            Component::PlayerBuyIn => crate::t!("Bereidheid speler", "Player Buy-In", "Adesão do Jogador"),
+            Component::NextMatchInfo => crate::t!("Info volgende wedstrijd", "Next Match Info", "Info do Próximo Jogo"),
         }
     }
 
@@ -100,23 +100,23 @@ impl Factor {
     /// Label zoals in het Breakdown-scherm van FM27.
     pub fn label(self) -> &'static str {
         match self {
-            Factor::InPossessionShape => "In Possession Shape",
-            Factor::PassingStyle => "Passing Style",
-            Factor::BuildUp => "Build Up",
-            Factor::ChanceCreation => "Chance Creation",
-            Factor::OutOfPossessionShape => "Out Of Possession Shape",
-            Factor::LineOfEngagement => "Line of Engagement",
-            Factor::PressingIntensity => "Pressing Intensity",
-            Factor::PressingTrap => "Pressing Trap",
-            Factor::PlayerTacticalAbility => "Player Tactical Ability",
-            Factor::TacticalComplexity => "Tactical Complexity",
-            Factor::PlayerCapability => "Player Capability",
-            Factor::PlayerRoleSuitability => "Player Role Suitability",
-            Factor::ManagerialSupport => "Managerial Support",
-            Factor::TeammatesAndStaffRelationships => "Teammates and Staff Relationships",
-            Factor::ManagerTendencies => "Manager Tendencies",
-            Factor::QualityOfNextOppositionReport => "Quality of Next Opposition Report",
-            Factor::OppositionPlayerKnowledge => "Opposition Player Knowledge",
+            Factor::InPossessionShape => crate::t!("Vorm bij balbezit", "In Possession Shape", "Formação com Posse"),
+            Factor::PassingStyle => crate::t!("Passingstijl", "Passing Style", "Estilo de Passe"),
+            Factor::BuildUp => crate::t!("Opbouw", "Build Up", "Construção"),
+            Factor::ChanceCreation => crate::t!("Kansen creëren", "Chance Creation", "Criação de Oportunidades"),
+            Factor::OutOfPossessionShape => crate::t!("Organisatie zonder bal", "Out Of Possession Shape", "Formação sem Posse"),
+            Factor::LineOfEngagement => crate::t!("Interventielijn", "Line of Engagement", "Linha de Pressão"),
+            Factor::PressingIntensity => crate::t!("Pressingintensiteit", "Pressing Intensity", "Intensidade da Pressão"),
+            Factor::PressingTrap => crate::t!("Pressingval", "Pressing Trap", "Armadilha de Pressão"),
+            Factor::PlayerTacticalAbility => crate::t!("Tactische vaardigheid", "Player Tactical Ability", "Habilidade Tática do Jogador"),
+            Factor::TacticalComplexity => crate::t!("Tactische complexiteit", "Tactical Complexity", "Complexidade Tática"),
+            Factor::PlayerCapability => crate::t!("Spelerscapaciteit", "Player Capability", "Capacidade do Jogador"),
+            Factor::PlayerRoleSuitability => crate::t!("Geschiktheid spelersrol", "Player Role Suitability", "Aptidão do Jogador à Função"),
+            Factor::ManagerialSupport => crate::t!("Steun van de manager", "Managerial Support", "Apoio ao Técnico"),
+            Factor::TeammatesAndStaffRelationships => crate::t!("Relaties met staf", "Teammates and Staff Relationships", "Relações com Colegas e Comissão"),
+            Factor::ManagerTendencies => crate::t!("Neigingen van de manager", "Manager Tendencies", "Tendências do Técnico"),
+            Factor::QualityOfNextOppositionReport => crate::t!("Rapport tegenstander", "Quality of Next Opposition Report", "Relatório do Próximo Adversário"),
+            Factor::OppositionPlayerKnowledge => crate::t!("Kennis spelers tegenstander", "Opposition Player Knowledge", "Conhecimento dos Adversários"),
         }
     }
 
@@ -221,12 +221,12 @@ pub enum Category {
 impl Category {
     pub fn label(self) -> &'static str {
         match self {
-            Category::TacticalUnderstanding => "Tactical Understanding",
-            Category::MatchPreparation => "Match Preparation",
-            Category::FootballingDevelopment => "Footballing Development",
-            Category::PhysicalRecovery => "Physical and Recovery",
-            Category::ExtraCurricular => "Extra-Curricular",
-            Category::Fixed => "Match / Travel",
+            Category::TacticalUnderstanding => crate::t!("Tactisch begrip", "Tactical Understanding", "Entendimento Tático"),
+            Category::MatchPreparation => crate::t!("Wedstrijdvoorbereiding", "Match Preparation", "Preparação para Partida"),
+            Category::FootballingDevelopment => crate::t!("Voetbalontwikkeling", "Footballing Development", "Desenvolvimento no Futebol"),
+            Category::PhysicalRecovery => crate::t!("Fysiek en herstel", "Physical and Recovery", "Físico e Recuperação"),
+            Category::ExtraCurricular => crate::t!("Buitenschoolse activiteiten", "Extra-Curricular", "Extracurricular"),
+            Category::Fixed => crate::t!("Wedstrijd / Reis", "Match / Travel", "Partida / Viagem"),
         }
     }
 
