@@ -18,6 +18,7 @@
 </p>
 
 <p align="center">
+  <a href="README.pt-br.md">Português (Brasil)</a> ·
   <a href="README.nl.md">Nederlands</a> ·
   <a href="#features">Features</a> ·
   <a href="#install">Install</a> ·

@@ -12,14 +12,15 @@ name: release
 
 on:
   push:
+    branches: ["main", "pt-br"]
     tags: ["v*"]
   workflow_dispatch:
     inputs:
       platform:
-        description: "Welke versie bouwen"
+        description: "Qual versão compilar"
         type: choice
-        options: [alle, windows, macos]
-        default: alle
+        options: [windows, macos, alle]
+        default: windows
 
 permissions:
   contents: write

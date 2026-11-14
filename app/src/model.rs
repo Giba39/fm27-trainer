@@ -156,43 +156,53 @@ impl Factor {
             InPossessionShape | PassingStyle | BuildUp | ChanceCreation | OutOfPossessionShape
             | LineOfEngagement | PressingIntensity | PressingTrap => crate::t!(
                 "Train de sessie met dezelfde naam (groep Tactical Understanding). Zet je Primary Trained Tactic op de tactiek die je speelt.",
-                "Train the session with the same name (Tactical Understanding group). Set your Primary Trained Tactic to the tactic you play."
+                "Train the session with the same name (Tactical Understanding group). Set your Primary Trained Tactic to the tactic you play.",
+                "Treine a sessão com o mesmo nome (grupo Entendimento Tático). Defina sua Tática Principal Treinada para a tática que você joga."
             ),
             PlayerTacticalAbility => crate::t!(
                 "Hangt af van de spelers zelf (beslissingen, anticipatie, teamwork). Speel spelers met een hogere Tactic Ability of houd de instructies eenvoudiger.",
-                "Depends on the players themselves (decisions, anticipation, teamwork). Pick players with higher Tactic Ability or keep instructions simpler."
+                "Depends on the players themselves (decisions, anticipation, teamwork). Pick players with higher Tactic Ability or keep instructions simpler.",
+                "Depende dos próprios jogadores (decisões, antecipação, trabalho em equipe). Escale jogadores com maior Capacidade Tática ou simplifique as instruções."
             ),
             TacticalComplexity => crate::t!(
                 "Te veel team-, speler- en tegenstanderinstructies. Schrap instructies die weinig opleveren en voeg ze later weer toe.",
-                "Too many team, player and opposition instructions. Drop the ones that add little and bring them back later."
+                "Too many team, player and opposition instructions. Drop the ones that add little and bring them back later.",
+                "Muitas instruções de equipe, jogador e adversário. Remova as que pouco acrescentam e adicione-as novamente mais tarde."
             ),
             PlayerCapability => crate::t!(
                 "Spelers kunnen de rollen niet goed genoeg uitvoeren. Kies rollen die bij hun attributen passen of versterk de selectie.",
-                "Players struggle to carry out their roles. Pick roles that suit their attributes or strengthen the squad."
+                "Players struggle to carry out their roles. Pick roles that suit their attributes or strengthen the squad.",
+                "Os jogadores têm dificuldade em desempenhar suas funções. Escolha funções adequadas aos seus atributos ou reforce o elenco."
             ),
             PlayerRoleSuitability => crate::t!(
                 "Speel spelers op hun natuurlijke positie en rol. Check in Player View wie het cijfer omlaag trekt.",
-                "Play people in their natural position and role. Use Player View to see who drags the rating down."
+                "Play people in their natural position and role. Use Player View to see who drags the rating down.",
+                "Escale os jogadores na sua posição e função naturais. Use a Visualização do Jogador para ver quem está reduzindo a nota."
             ),
             ManagerialSupport => crate::t!(
                 "Resultaten, goede teamtalks en positieve gesprekken met spelers verhogen de steun.",
-                "Results, good team talks and positive player interactions raise support."
+                "Results, good team talks and positive player interactions raise support.",
+                "Resultados, boas palestras motivacionais e conversas positivas com os jogadores aumentam o apoio."
             ),
             TeammatesAndStaffRelationships => crate::t!(
                 "Plan Team Bonding (Extra-Curricular). Houd de kern van de selectie bij elkaar en vermijd onrust.",
-                "Schedule Team Bonding (Extra-Curricular). Keep the core of the squad together and avoid unrest."
+                "Schedule Team Bonding (Extra-Curricular). Keep the core of the squad together and avoid unrest.",
+                "Agende União da Equipe (Extracurricular). Mantenha a base do elenco unida e evite insatisfações."
             ),
             ManagerTendencies => crate::t!(
                 "Spelers verwachten de speelstijl van je managerprofiel. Hoe meer je tactiek afwijkt, hoe lager dit.",
-                "Players expect the style of your manager profile. The further your tactic strays from it, the lower this is."
+                "Players expect the style of your manager profile. The further your tactic strays from it, the lower this is.",
+                "Os jogadores esperam o estilo do seu perfil de treinador. Quanto mais sua tática se afasta dele, menor é esta nota."
             ),
             QualityOfNextOppositionReport => crate::t!(
                 "Laat je analist/scouts de volgende tegenstander rapporteren en neem goede analisten aan.",
-                "Have your analysts/scouts report on the next opponent, and hire good analysts."
+                "Have your analysts/scouts report on the next opponent, and hire good analysts.",
+                "Peça aos seus analistas/olheiros relatórios sobre o próximo adversário e contrate bons analistas."
             ),
             OppositionPlayerKnowledge => crate::t!(
                 "Groeit door scouting van de tegenstander en hun spelers. Laat onbekende (Europese) tegenstanders vooraf scouten.",
-                "Grows by scouting the opponent and their players. Scout unknown (European) opponents in advance."
+                "Grows by scouting the opponent and their players. Scout unknown (European) opponents in advance.",
+                "Aumenta ao observar o adversário e seus jogadores. Observe adversários desconhecidos com antecedência."
             ),
         }
     }
@@ -423,11 +433,11 @@ impl Effectiveness {
 /// Kleurklasse van een meter: rood → groen, zoals FM27 ze toont.
 pub fn level_name(score: f32) -> &'static str {
     match score {
-        s if s < 25.0 => crate::t!("zeer laag", "very low"),
-        s if s < 45.0 => crate::t!("laag", "low"),
-        s if s < 60.0 => crate::t!("matig", "fair"),
-        s if s < 80.0 => crate::t!("goed", "good"),
-        _ => crate::t!("uitstekend", "excellent"),
+        s if s < 25.0 => crate::t!("zeer laag", "very low", "muito baixo"),
+        s if s < 45.0 => crate::t!("laag", "low", "baixo"),
+        s if s < 60.0 => crate::t!("matig", "fair", "médio"),
+        s if s < 80.0 => crate::t!("goed", "good", "bom"),
+        _ => crate::t!("uitstekend", "excellent", "excelente"),
     }
 }
 

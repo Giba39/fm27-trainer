@@ -156,6 +156,7 @@ impl App {
         match std::env::var("FM27_LANG").as_deref() {
             Ok("nl") => settings.lang = Lang::Nl,
             Ok("en") => settings.lang = Lang::En,
+            Ok("pt") | Ok("pt-br") | Ok("pt_br") => settings.lang = Lang::PtBr,
             _ => {}
         }
         i18n::set(settings.lang);
@@ -271,14 +272,14 @@ impl App {
             }
             let res: AnalysisResult = match file {
                 Some(p) => vision::analyze_file(&p).map(|(a, _)| (a, p.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default())).map_err(|e| format!("{e:#}")),
-                None => vision::analyze_screen().map(|(a, _)| (a, t!("FM27-scherm", "FM27 screen").to_string())).map_err(|e| format!("{e:#}")),
+                None => vision::analyze_screen().map(|(a, _)| (a, t!("FM27-scherm", "FM27 screen", "Tela do FM27").to_string())).map_err(|e| format!("{e:#}")),
             };
             let _ = tx.send(res);
             ctx2.request_repaint();
         });
         self.analysis_rx = Some(rx);
         if !self.auto_pending {
-            self.set_status(t!("Bezig met uitlezen…", "Reading…"), false);
+            self.set_status(t!("Bezig met uitlezen…", "Reading…", "Lendo…"), false);
         }
     }
 
@@ -291,19 +292,19 @@ impl App {
             match res {
                 // automatisch: alleen een volledige, zekere uitlezing telt, en alleen als er iets veranderd is
                 Ok((a, _)) if auto && (a.gauges.len() < 17 || a.components.len() < 4 || a.gauges.iter().any(|g| g.doubt)) => {
-                    self.auto_note = t!("wacht op de Breakdown in FM", "waiting for the Breakdown in FM").to_string();
+                    self.auto_note = t!("wacht op de Breakdown in FM", "waiting for the Breakdown in FM", "aguardando a tela de Detalhamento no FM").to_string();
                 }
                 Ok((a, _)) if auto && same_values(&self.eff, &a.to_effectiveness("")) => {
                     self.auto_note = t!(format!("geen verandering ({})", chrono::Local::now().format("%H:%M:%S")), format!("no change ({})", chrono::Local::now().format("%H:%M:%S"))).to_string();
                 }
                 Err(_) if auto => {
-                    self.auto_note = t!("wacht op de Breakdown in FM", "waiting for the Breakdown in FM").to_string();
+                    self.auto_note = t!("wacht op de Breakdown in FM", "waiting for the Breakdown in FM", "aguardando a tela de Detalhamento no FM").to_string();
                 }
                 Ok((a, src)) => {
                     if auto {
                         self.auto_note = t!(format!("bijgewerkt ({})", chrono::Local::now().format("%H:%M:%S")), format!("updated ({})", chrono::Local::now().format("%H:%M:%S"))).to_string();
                     }
-                    let src_is_screen = src == t!("FM27-scherm", "FM27 screen");
+                    let src_is_screen = src == t!("FM27-scherm", "FM27 screen", "Tela do FM27");
                     let when = chrono::Local::now().format("%d-%m %H:%M");
                     self.eff = a.to_effectiveness(&format!("{src} · {when}"));
                     // spel-datum erbij, zodat de app weet hoe oud de meting in speltijd is
@@ -314,7 +315,7 @@ impl App {
                         }
                     }
                     let _ = crate::save_effectiveness(&self.eff);
-                    let mut msg = t!(format!("{} van 17 meters gelezen.", a.gauges.len()), format!("Read {} of 17 gauges.", a.gauges.len())).to_string();
+                    let mut msg = t!(format!("{} van 17 meters gelezen.", a.gauges.len()), format!("Read {} of 17 gauges.", a.gauges.len()), format!("Lidos {} de 17 medidores.", a.gauges.len())).to_string();
                     if !a.lang.starts_with("english") {
                         msg.push_str(&format!(" (FM: {})", a.lang));
                     }
@@ -324,17 +325,15 @@ impl App {
                         msg.push(' ');
                         msg.push_str(&t!(
                             format!("Kijk na (kleur en vulling kloppen niet): {}. Pas aan met 'Waarden handmatig aanpassen'.", doubts.join(", ")),
-                            format!("Please check (colour and fill disagree): {}. Fix them with 'Adjust values manually'.", doubts.join(", "))
+                            format!("Please check (colour and fill disagree): {}. Fix them with 'Adjust values manually'.", doubts.join(", ")),
+                            format!("Verifique (cor e preenchimento não conferem): {}. Corrija em 'Ajustar valores manualmente'.", doubts.join(", "))
                         ));
                     }
                     let incomplete = a.gauges.len() < 17 || a.components.len() < 4 || !doubts.is_empty();
                     if incomplete && src_is_screen {
                         // zonder de opname is een verkeerde uitlezing niet na te spelen
                         msg.push(' ');
-                        msg.push_str(t!(
-                            "Klopt het niet? Stuur last-breakdown.png en last-analysis.txt uit de app-map (Instellingen → Open app-map) mee met je melding.",
-                            "Not right? Attach last-breakdown.png and last-analysis.txt from the app folder (Settings → Open app folder) to your report."
-                        ));
+                        msg.push_str(t!("Klopt het niet? Stuur last-breakdown.png en last-analysis.txt uit de app-map (Instellingen → Open app-map) mee met je melding.", "Not right? Attach last-breakdown.png and last-analysis.txt from the app folder (Settings → Open app folder) to your report.", "Não está correto? Anexe last-breakdown.png e last-analysis.txt da pasta do app (Configurações → Abrir pasta do app) ao seu relato."));
                     }
                     self.set_status(msg, incomplete);
                     self.week_plan = None;
@@ -371,13 +370,13 @@ impl App {
                 ui.label(theme::caps("Menu"));
                 ui.add_space(4.0);
                 let items = [
-                    (Page::Overview, icon::GAUGE, t!("Overzicht", "Overview")),
+                    (Page::Overview, icon::GAUGE, t!("Overzicht", "Overview", "Visão Geral")),
                     (Page::Training, icon::BARBELL, "Training"),
                     (Page::Planning, icon::CALENDAR_DOTS, "Planning"),
                     (Page::Club, icon::BANK, "Club"),
-                    (Page::Squad, icon::USERS_THREE, t!("Selectie", "Squad")),
+                    (Page::Squad, icon::USERS_THREE, t!("Selectie", "Squad", "Elenco")),
                     (Page::Sell, icon::HANDSHAKE, "Transfers"),
-                    (Page::Settings, icon::GEAR_SIX, t!("Instellingen", "Settings")),
+                    (Page::Settings, icon::GEAR_SIX, t!("Instellingen", "Settings", "Configurações")),
                 ];
                 for (p, ic, label) in items {
                     if theme::nav_item(ui, ic, label, self.page == p).clicked() {
@@ -389,7 +388,7 @@ impl App {
                     ui.label(theme::faint(format!("v{}", env!("CARGO_PKG_VERSION"))));
                     ui.add_space(6.0);
                     let mut lang = self.settings.lang;
-                    if theme::segmented(ui, &mut lang, &[(Lang::Nl, "Nederlands"), (Lang::En, "English")]) {
+                    if theme::segmented(ui, &mut lang, &[(Lang::Nl, "Nederlands"), (Lang::En, "English"), (Lang::PtBr, "Português")]) {
                         self.settings.lang = lang;
                         i18n::set(lang);
                         self.save_settings();
@@ -399,11 +398,11 @@ impl App {
                         ui.set_width(ui.available_width());
                         ui.horizontal(|ui| {
                             let (c, txt) = if !agent::LIVE_SUPPORTED {
-                                (theme::TEXT_FAINT, t!("Live: alleen macOS", "Live: macOS only"))
+                                (theme::TEXT_FAINT, t!("Live: alleen macOS", "Live: macOS only", "Ao vivo: apenas macOS"))
                             } else if self.live.connected {
-                                (theme::SUCCESS, t!("Verbonden met FM27", "Connected to FM27"))
+                                (theme::SUCCESS, t!("Verbonden met FM27", "Connected to FM27", "Conectado ao FM27"))
                             } else {
-                                (theme::TEXT_FAINT, t!("Niet verbonden", "Not connected"))
+                                (theme::TEXT_FAINT, t!("Niet verbonden", "Not connected", "Não conectado"))
                             };
                             theme::status_dot(ui, c);
                             ui.label(RichText::new(txt).size(13.0).color(theme::TEXT));
@@ -435,40 +434,34 @@ impl App {
     fn connect_card(&mut self, ui: &mut Ui, ctx: &egui::Context) {
         theme::card(ui, |ui| {
             if !agent::LIVE_SUPPORTED {
-                ui.label(theme::h2(t!("Live in FM is niet beschikbaar op dit systeem", "Live in FM is not available on this system")));
-                ui.label(theme::dim(t!("Uitlezen, planning en export werken wel.", "Reading, planning and export do work.")));
+                ui.label(theme::h2(t!("Live in FM is niet beschikbaar op dit systeem", "Live in FM is not available on this system", "Ao vivo no FM não está disponível neste sistema")));
+                ui.label(theme::dim(t!("Uitlezen, planning en export werken wel.", "Reading, planning and export do work.", "Leitura de tela, planejamento e exportação funcionam normalmente.")));
                 return;
             }
             let windows = cfg!(windows);
             ui.horizontal(|ui| {
                 ui.label(theme::ic(icon::PLUGS_CONNECTED).size(28.0).color(theme::ACCENT));
                 ui.vertical(|ui| {
-                    ui.label(theme::h2(t!("Verbind met Football Manager", "Connect to Football Manager")));
+                    ui.label(theme::h2(t!("Verbind met Football Manager", "Connect to Football Manager", "Conectar ao Football Manager")));
                     ui.label(theme::dim(if windows {
-                        t!(
-                            "De app leest FM27 rechtstreeks terwijl het draait. Je hoeft niets te installeren.",
-                            "The app reads FM27 directly while it runs. Nothing to install."
-                        )
+                        t!("De app leest FM27 rechtstreeks terwijl het draait. Je hoeft niets te installeren.", "The app reads FM27 directly while it runs. Nothing to install.", "O app lê o FM27 diretamente enquanto ele roda. Nada precisa ser instalado.")
                     } else {
-                        t!(
-                            "De app praat rechtstreeks met FM27 via een kleine module die met FM meestart.",
-                            "The app talks to FM27 directly through a small module that starts with FM."
-                        )
+                        t!("De app praat rechtstreeks met FM27 via een kleine module die met FM meestart.", "The app talks to FM27 directly through a small module that starts with FM.", "O app comunica-se diretamente com o FM27 por um pequeno módulo iniciado com o jogo.")
                     }));
                 });
             });
             ui.add_space(10.0);
             let steps = if windows {
                 [
-                    (1, t!("Start FM27 op de pc: Steam (of de knop hieronder), Xbox-app / Game Pass of Epic.", "Start FM27 on your PC: Steam (or the button below), the Xbox app / Game Pass or Epic.")),
-                    (2, t!("Laad je save.", "Load your save.")),
-                    (3, t!("De app verbindt vanzelf.", "The app connects automatically.")),
+                    (1, t!("Start FM27 op de pc: Steam (of de knop hieronder), Xbox-app / Game Pass of Epic.", "Start FM27 on your PC: Steam (or the button below), the Xbox app / Game Pass or Epic.", "Inicie o FM27 no PC: Steam (ou botão abaixo), Xbox app / Game Pass ou Epic.")),
+                    (2, t!("Laad je save.", "Load your save.", "Carregue o seu save.")),
+                    (3, t!("De app verbindt vanzelf.", "The app connects automatically.", "O aplicativo conecta automaticamente.")),
                 ]
             } else {
                 [
-                    (1, t!("Sla je spel op en sluit FM27.", "Save your game and quit FM27.")),
-                    (2, t!("Klik op 'Start FM met module' (Steam moet open zijn).", "Click 'Start FM with module' (Steam must be open).")),
-                    (3, t!("Laad je save. De app verbindt vanzelf.", "Load your save. The app connects automatically.")),
+                    (1, t!("Sla je spel op en sluit FM27.", "Save your game and quit FM27.", "Salve o seu jogo e feche o FM27.")),
+                    (2, t!("Klik op 'Start FM met module' (Steam moet open zijn).", "Click 'Start FM with module' (Steam must be open).", "Clique em 'Iniciar FM com módulo' (a Steam deve estar aberta).")),
+                    (3, t!("Laad je save. De app verbindt vanzelf.", "Load your save. The app connects automatically.", "Carregue seu save. O aplicativo conecta automaticamente.")),
                 ]
             };
             for (n, s) in steps {
@@ -481,12 +474,12 @@ impl App {
             }
             ui.add_space(10.0);
             ui.horizontal(|ui| {
-                let start = if windows { t!("Start FM27", "Start FM27") } else { t!("Start FM met module", "Start FM with module") };
+                let start = if windows { t!("Start FM27", "Start FM27", "Iniciar FM27") } else { t!("Start FM met module", "Start FM with module", "Iniciar FM com módulo") };
                 if theme::primary_button(ui, icon::PLAY, start, !self.live.busy()).clicked() {
                     self.live.start_fm(ctx);
                 }
-                if theme::button(ui, icon::ARROW_COUNTER_CLOCKWISE, t!("Opnieuw verbinden", "Reconnect"), !self.live.busy()).clicked() {
-                    self.live.refresh(ctx, t!("verbinden", "connect"), None);
+                if theme::button(ui, icon::ARROW_COUNTER_CLOCKWISE, t!("Opnieuw verbinden", "Reconnect", "Reconectar"), !self.live.busy()).clicked() {
+                    self.live.refresh(ctx, t!("verbinden", "connect", "conectar"), None);
                 }
                 if self.live.busy() {
                     ui.spinner();
@@ -501,16 +494,16 @@ impl App {
         let subtitle = if self.has_data() {
             t!(format!("Laatst uitgelezen: {}", self.eff.source), format!("Last read: {}", self.eff.source))
         } else {
-            t!("Open in FM27 de Breakdown van Tactical Effectiveness en lees hem uit.", "Open the Tactical Effectiveness Breakdown in FM27 and read it.").to_string()
+            t!("Open in FM27 de Breakdown van Tactical Effectiveness en lees hem uit.", "Open the Tactical Effectiveness Breakdown in FM27 and read it.", "Abra o Detalhamento de Eficácia Tática no FM27 e faça a leitura.").to_string()
         };
         let busy = self.analysis_rx.is_some();
         let mut read = false;
         let mut file = false;
         theme::page_header(ui, "Tactical Effectiveness", &subtitle, |ui| {
-            if theme::button(ui, icon::EXPORT, t!("Uit bestand", "From file"), !busy).clicked() {
+            if theme::button(ui, icon::EXPORT, t!("Uit bestand", "From file", "Do arquivo"), !busy).clicked() {
                 file = true;
             }
-            if theme::primary_button(ui, icon::CAMERA, t!("Lees FM-scherm", "Read FM screen"), !busy).clicked() {
+            if theme::primary_button(ui, icon::CAMERA, t!("Lees FM-scherm", "Read FM screen", "Ler tela do FM"), !busy).clicked() {
                 read = true;
             }
             if busy {
@@ -530,9 +523,9 @@ impl App {
                 self.auto_note.clear();
                 self.save_settings();
             }
-            ui.label(theme::label_strong(t!("Automatisch uitlezen", "Auto-read")));
+            ui.label(theme::label_strong(t!("Automatisch uitlezen", "Auto-read", "Leitura automática")));
             if self.settings.auto_read {
-                ui.label(theme::dim(t!("elke", "every")));
+                ui.label(theme::dim(t!("elke", "every", "a cada")));
                 if ui.add(egui::DragValue::new(&mut self.settings.auto_read_secs).range(5..=120).suffix(" s")).changed() {
                     self.save_settings();
                 }
@@ -540,19 +533,16 @@ impl App {
                     theme::pill(ui, &self.auto_note, theme::INFO);
                 }
             } else {
-                ui.label(theme::faint(t!(
-                    "Laat de Breakdown in FM open staan en de app leest hem zelf opnieuw.",
-                    "Leave the Breakdown open in FM and the app re-reads it by itself."
-                )));
+                ui.label(theme::faint(t!("Laat de Breakdown in FM open staan en de app leest hem zelf opnieuw.", "Leave the Breakdown open in FM and the app re-reads it by itself.", "Deixe o Detalhamento aberto no FM e o app lê novamente sozinho.")));
             }
         });
         ui.add_space(12.0);
         if self.show_file {
             theme::card(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(t!("Screenshot (PNG):", "Screenshot (PNG):"));
+                    ui.label(t!("Screenshot (PNG):", "Screenshot (PNG):", "Captura de tela (PNG):"));
                     ui.add(egui::TextEdit::singleline(&mut self.image_path).hint_text("/…/breakdown.png").desired_width(420.0));
-                    if theme::button(ui, "", t!("Lees", "Read"), !busy && !self.image_path.trim().is_empty()).clicked() {
+                    if theme::button(ui, "", t!("Lees", "Read", "Ler"), !busy && !self.image_path.trim().is_empty()).clicked() {
                         let p = PathBuf::from(self.image_path.trim().trim_matches('\''));
                         self.start_analysis(ctx, Some(p));
                     }
@@ -599,21 +589,21 @@ impl App {
         if changed {
             self.eff.components.clear();
             if !self.eff.source.ends_with('*') {
-                self.eff.source = format!("{} *", if self.eff.source.is_empty() { t!("handmatig", "manual") } else { &self.eff.source });
+                self.eff.source = format!("{} *", if self.eff.source.is_empty() { t!("handmatig", "manual", "manual") } else { &self.eff.source });
             }
             let _ = crate::save_effectiveness(&self.eff);
             self.week_plan = None;
             self.year.clear();
         }
         ui.add_space(4.0);
-        ui.checkbox(&mut self.edit_mode, t!("Waarden handmatig aanpassen", "Adjust values manually"));
+        ui.checkbox(&mut self.edit_mode, t!("Waarden handmatig aanpassen", "Adjust values manually", "Ajustar valores manualmente"));
         ui.add_space(10.0);
 
         // prioriteiten
         theme::card(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(theme::ic(icon::LIGHTNING).color(theme::WARNING).size(18.0));
-                ui.label(theme::h2(t!("Prioriteiten", "Priorities")));
+                ui.label(theme::h2(t!("Prioriteiten", "Priorities", "Prioridades")));
             });
             ui.add_space(6.0);
             for (f, v) in self.eff.weakest().into_iter().take(6) {
@@ -636,15 +626,12 @@ impl App {
         theme::page_header(
             ui,
             "Training",
-            t!(
-                "FM27 Trainer plant je training op je zwakste gebieden en houdt hem in FM's kalender vast.",
-                "FM27 Trainer plans your training on your weakest areas and keeps it in FM's calendar."
-            ),
+            t!("FM27 Trainer plant je training op je zwakste gebieden en houdt hem in FM's kalender vast.", "FM27 Trainer plans your training on your weakest areas and keeps it in FM's calendar.", "O FM27 Trainer planeja seus treinos nos pontos mais fracos e mantém no calendário do FM."),
             |ui| {
-                if theme::primary_button(ui, icon::LIGHTNING, t!("Zet training nu in FM", "Apply training now"), can).clicked() {
+                if theme::primary_button(ui, icon::LIGHTNING, t!("Zet training nu in FM", "Apply training now", "Aplicar treino agora"), can).clicked() {
                     write = true;
                 }
-                if theme::button(ui, icon::EYE, t!("Bekijk plan", "Preview"), can).clicked() {
+                if theme::button(ui, icon::EYE, t!("Bekijk plan", "Preview", "Pré-visualizar"), can).clicked() {
                     view = true;
                 }
                 if self.live.busy() {
@@ -675,28 +662,19 @@ impl App {
                     ui.label(theme::ic(if auto { icon::CHECK_CIRCLE } else { icon::WARNING }).size(30.0).color(accent));
                     ui.vertical(|ui| {
                         ui.horizontal(|ui| {
-                            ui.label(theme::h2(t!("Training automatisch bijhouden", "Keep training on plan automatically")));
+                            ui.label(theme::h2(t!("Training automatisch bijhouden", "Keep training on plan automatically", "Manter treinos no plano automaticamente")));
                             ui.add_space(8.0);
                             if theme::toggle(ui, &mut self.settings.auto_training).changed() {
                                 self.save_settings();
                             }
-                            ui.label(RichText::new(if auto { t!("AAN", "ON") } else { t!("UIT", "OFF") }).strong().color(accent));
+                            ui.label(RichText::new(if auto { t!("AAN", "ON", "LIGADO") } else { t!("UIT", "OFF", "DESLIGADO") }).strong().color(accent));
                         });
                         let text = if !connected {
-                            t!(
-                                "Werkt zodra FM met de module draait (zie hieronder).",
-                                "Works once FM runs with the module (see below)."
-                            )
+                            t!("Werkt zodra FM met de module draait (zie hieronder).", "Works once FM runs with the module (see below).", "Funciona quando o FM roda com o módulo (veja abaixo).")
                         } else if auto {
-                            t!(
-                                "FM's assistent plant elke week de komende 1–2 weken opnieuw in. FM27 Trainer controleert elke 8 seconden en zet afwijkingen terug naar jouw plan. Laat de app open terwijl je speelt.",
-                                "FM's assistant re-plans the next 1–2 weeks every week. FM27 Trainer checks every 8 seconds and puts any change back on your plan. Keep the app open while you play."
-                            )
+                            t!("FM's assistent plant elke week de komende 1–2 weken opnieuw in. FM27 Trainer controleert elke 8 seconden en zet afwijkingen terug naar jouw plan. Laat de app open terwijl je speelt.", "FM's assistant re-plans the next 1–2 weeks every week. FM27 Trainer checks every 8 seconds and puts any change back on your plan. Keep the app open while you play.", "O assistente do FM replaneja as próximas 1–2 semanas toda semana. O FM27 Trainer verifica a cada 8 segundos e restaura para o seu plano. Deixe o app aberto enquanto joga.")
                         } else {
-                            t!(
-                                "Uit: FM overschrijft je training elke week met zijn eigen planning. Zet dit aan, of klik na elke paar speelweken op 'Zet training nu in FM'.",
-                                "Off: FM overwrites your training with its own plan every week. Turn this on, or click 'Apply training now' every few game weeks."
-                            )
+                            t!("Uit: FM overschrijft je training elke week met zijn eigen planning. Zet dit aan, of klik na elke paar speelweken op 'Zet training nu in FM'.", "Off: FM overwrites your training with its own plan every week. Turn this on, or click 'Apply training now' every few game weeks.", "Desligado: o FM sobrescreve seu treino com o plano dele toda semana. Ative isso, ou clique em 'Aplicar treino agora' a cada poucas semanas de jogo.")
                         };
                         ui.add(egui::Label::new(theme::dim(text)).wrap());
                     });
@@ -706,10 +684,10 @@ impl App {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 36.0;
                         let last = self.live.last_check.map(|t| t.format("%H:%M:%S").to_string()).unwrap_or_else(|| "—".into());
-                        theme::mini_stat(ui, t!("Laatste controle", "Last check"), &last);
-                        theme::mini_stat(ui, t!("Teruggezet (deze sessie)", "Restored (this session)"), &t!(format!("{} dagen", self.live.fixed_total), format!("{} days", self.live.fixed_total)));
+                        theme::mini_stat(ui, t!("Laatste controle", "Last check", "Última verificação"), &last);
+                        theme::mini_stat(ui, t!("Teruggezet (deze sessie)", "Restored (this session)", "Restaurados (nesta sessão)"), &t!(format!("{} dagen", self.live.fixed_total), format!("{} days", self.live.fixed_total)));
                         let d = self.live.training.as_ref().and_then(|o| o.today).map(i18n::date).unwrap_or_else(|| "—".into());
-                        theme::mini_stat(ui, t!("Spel-datum", "Game date"), &d);
+                        theme::mini_stat(ui, t!("Spel-datum", "Game date", "Data no jogo"), &d);
                     });
                 }
             });
@@ -724,41 +702,35 @@ impl App {
         let stale = !self.has_data() || age_weeks.is_none_or(|w| w >= 3);
         let mut go_overview = false;
         ui.columns(3, |cols| {
-            step_card(&mut cols[0], 1, icon::CAMERA, t!("Meten", "Measure"), |ui| {
+            step_card(&mut cols[0], 1, icon::CAMERA, t!("Meten", "Measure", "Medir"), |ui| {
                 let txt = if !self.has_data() {
-                    t!("Nog niet uitgelezen.", "Not read yet.").to_string()
+                    t!("Nog niet uitgelezen.", "Not read yet.", "Ainda não lido.").to_string()
                 } else {
                     match age_weeks {
-                        Some(0) => t!("Uitgelezen deze week (speltijd).", "Read this week (game time).").to_string(),
+                        Some(0) => t!("Uitgelezen deze week (speltijd).", "Read this week (game time).", "Lido esta semana (tempo de jogo).").to_string(),
                         Some(w) => t!(format!("Uitgelezen {w} weken geleden (speltijd)."), format!("Read {w} weeks ago (game time).")),
                         None => t!(format!("Uitgelezen: {}", self.eff.source), format!("Read: {}", self.eff.source)),
                     }
                 };
                 ui.label(if stale { RichText::new(txt).color(theme::WARNING) } else { theme::dim(txt) });
-                ui.add(egui::Label::new(theme::faint(t!(
-                    "Open in FM de Breakdown en lees hem uit; doe dit elke 2–3 speelweken.",
-                    "Open the Breakdown in FM and read it; do this every 2–3 game weeks."
-                ))).wrap());
-                if theme::small_button(ui, t!("Naar Overzicht", "Go to Overview"), true).clicked() {
+                ui.add(egui::Label::new(theme::faint(t!("Open in FM de Breakdown en lees hem uit; doe dit elke 2–3 speelweken.", "Open the Breakdown in FM and read it; do this every 2–3 game weeks.", "Abra o Detalhamento no FM e faça a leitura; repita a cada 2–3 semanas de jogo."))).wrap());
+                if theme::small_button(ui, t!("Naar Overzicht", "Go to Overview", "Ir para Visão Geral"), true).clicked() {
                     go_overview = true;
                 }
             });
-            step_card(&mut cols[1], 2, icon::TARGET, t!("Plannen", "Plan"), |ui| {
-                ui.label(theme::dim(t!("Extra aandacht voor:", "Extra focus on:")));
+            step_card(&mut cols[1], 2, icon::TARGET, t!("Plannen", "Plan", "Plano"), |ui| {
+                ui.label(theme::dim(t!("Extra aandacht voor:", "Extra focus on:", "Foco adicional em:")));
                 for (f, v) in self.eff.weakest().into_iter().filter(|(f, _)| f.is_tactical_area()).take(3) {
                     theme::pill(ui, &format!("{} · {v:.0}", f.label()), theme::rgb(level_color(v)));
                 }
-                ui.add(egui::Label::new(theme::faint(t!(
-                    "Het ritme rond wedstrijden volgt SI's presets; de focus schuift per week mee.",
-                    "The rhythm around matches follows SI's presets; the focus shifts week by week."
-                ))).wrap());
+                ui.add(egui::Label::new(theme::faint(t!("Het ritme rond wedstrijden volgt SI's presets; de focus schuift per week mee.", "The rhythm around matches follows SI's presets; the focus shifts week by week.", "O ritmo em volta das partidas segue os padrões da SI; o foco muda a cada semana."))).wrap());
             });
-            step_card(&mut cols[2], 3, icon::SPARKLE, t!("Bijhouden", "Keep"), |ui| {
+            step_card(&mut cols[2], 3, icon::SPARKLE, t!("Bijhouden", "Keep", "Manter"), |ui| {
                 for l in [
-                    t!("Alleen dagen ná vandaag worden aangepast.", "Only days after today are changed."),
-                    t!("Wedstrijd- en reisdagen blijven van FM.", "Match and travel days stay with FM."),
-                    t!("Rustweken (vakantie) blijven van FM.", "Rest weeks (holidays) stay with FM."),
-                    t!("Opslaan in FM bewaart alles in je save.", "Saving in FM keeps it in your save."),
+                    t!("Alleen dagen ná vandaag worden aangepast.", "Only days after today are changed.", "Apenas dias após hoje serão alterados."),
+                    t!("Wedstrijd- en reisdagen blijven van FM.", "Match and travel days stay with FM.", "Dias de partida e viagem continuam com o FM."),
+                    t!("Rustweken (vakantie) blijven van FM.", "Rest weeks (holidays) stay with FM.", "Semanas de descanso (férias) continuam com o FM."),
+                    t!("Opslaan in FM bewaart alles in je save.", "Saving in FM keeps it in your save.", "Salvar no FM mantém tudo gravado no seu save."),
                 ] {
                     ui.horizontal(|ui| {
                         ui.label(theme::ic(icon::CHECK_CIRCLE).color(theme::SUCCESS));
@@ -781,19 +753,16 @@ impl App {
         theme::card(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(theme::ic(icon::CALENDAR_DOTS).color(theme::INFO).size(16.0));
-                ui.label(theme::h2(t!("Logboek", "Activity")));
+                ui.label(theme::h2(t!("Logboek", "Activity", "Registro de Atividades")));
             });
             ui.add_space(4.0);
             if self.live.log.is_empty() {
-                ui.label(theme::faint(t!(
-                    "Nog geen aanpassingen. Zodra FM een week anders inplant, zie je hier wat er is teruggezet.",
-                    "No changes yet. When FM re-plans a week, you'll see here what was put back."
-                )));
+                ui.label(theme::faint(t!("Nog geen aanpassingen. Zodra FM een week anders inplant, zie je hier wat er is teruggezet.", "No changes yet. When FM re-plans a week, you'll see here what was put back.", "Nenhuma alteração ainda. Quando o FM replanejar uma semana, você verá aqui o que foi restaurado.")));
             }
             for e in self.live.log.iter().take(6) {
                 ui.horizontal(|ui| {
                     ui.label(theme::faint(e.at.format("%H:%M:%S").to_string()));
-                    theme::pill(ui, if e.auto { t!("automatisch", "automatic") } else { t!("handmatig", "manual") }, if e.auto { theme::SUCCESS } else { theme::ACCENT });
+                    theme::pill(ui, if e.auto { t!("automatisch", "automatic", "automático") } else { t!("handmatig", "manual", "manual") }, if e.auto { theme::SUCCESS } else { theme::ACCENT });
                     ui.add(egui::Label::new(RichText::new(&e.text).color(theme::TEXT)).wrap());
                 });
             }
@@ -807,7 +776,7 @@ impl App {
             return;
         };
         ui.horizontal(|ui| {
-            ui.label(theme::h2(t!("Komende weken", "Coming weeks")));
+            ui.label(theme::h2(t!("Komende weken", "Coming weeks", "Próximas semanas")));
             ui.add_space(10.0);
             legend(ui);
         });
@@ -825,9 +794,9 @@ impl App {
         theme::page_header(
             ui,
             "Planning",
-            t!("Week- en seizoensplan als overzicht en export (werkt ook zonder module).", "Weekly and season plan as overview and export (works without the module)."),
+            t!("Week- en seizoensplan als overzicht en export (werkt ook zonder module).", "Weekly and season plan as overview and export (works without the module).", "Plano semanal e de temporada com visão geral e exportação (funciona sem módulo)."),
             |ui| {
-                theme::segmented(ui, &mut tab, &[(PlanTab::Week, "Week"), (PlanTab::Season, t!("Seizoen", "Season"))]);
+                theme::segmented(ui, &mut tab, &[(PlanTab::Week, "Week"), (PlanTab::Season, t!("Seizoen", "Season", "Temporada"))]);
             },
         );
         self.plan_tab = tab;
@@ -842,23 +811,23 @@ impl App {
     fn planning_week(&mut self, ui: &mut Ui) {
         theme::card(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.label(t!("Week vanaf", "Week from"));
+                ui.label(t!("Week vanaf", "Week from", "Semana a partir de"));
                 ui.add(egui::TextEdit::singleline(&mut self.week_start).desired_width(96.0));
                 ui.separator();
-                ui.label(t!("Wedstrijd op", "Match on"));
+                ui.label(t!("Wedstrijd op", "Match on", "Partida em"));
                 for i in 0..7 {
                     ui.toggle_value(&mut self.week_matches[i], i18n::weekday_short(i));
                 }
                 ui.separator();
-                ui.checkbox(&mut self.prev_sunday, t!("wedstrijd zondag ervoor", "match previous Sunday"));
-                ui.checkbox(&mut self.next_monday, t!("wedstrijd maandag erna", "match next Monday"));
+                ui.checkbox(&mut self.prev_sunday, t!("wedstrijd zondag ervoor", "match previous Sunday", "partida no domingo anterior"));
+                ui.checkbox(&mut self.next_monday, t!("wedstrijd maandag erna", "match next Monday", "partida na segunda seguinte"));
                 kind_combo(ui, "weekkind", &mut self.week_kind);
             });
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 // bij een testopname (FM27_SNAPSHOT) meteen een plan laten zien
                 let auto = self.week_plan.is_none() && std::env::var("FM27_SNAPSHOT").is_ok();
-                if theme::primary_button(ui, icon::SPARKLE, t!("Maak weekplan", "Build week plan"), true).clicked() || auto {
+                if theme::primary_button(ui, icon::SPARKLE, t!("Maak weekplan", "Build week plan", "Gerar plano semanal"), true).clicked() || auto {
                     let start = NaiveDate::parse_from_str(self.week_start.trim(), "%Y-%m-%d")
                         .map(planner::monday_of)
                         .unwrap_or_else(|_| planner::monday_of(chrono::Local::now().date_naive()));
@@ -866,8 +835,8 @@ impl App {
                     self.week_plan = Some(planner::plan_week(&week, self.prev_sunday, self.next_monday, &self.eff, &self.settings.planner, 1));
                 }
                 if let Some(p) = self.week_plan.clone() {
-                    if theme::button(ui, icon::EXPORT, t!("Exporteer & open", "Export & open"), true).clicked() {
-                        let r = export::write_all(&export::output_dir(), "weekplan", t!("FM27 weekplan", "FM27 week plan"), &self.eff, std::slice::from_ref(&p));
+                    if theme::button(ui, icon::EXPORT, t!("Exporteer & open", "Export & open", "Exportar e abrir"), true).clicked() {
+                        let r = export::write_all(&export::output_dir(), "weekplan", t!("FM27 weekplan", "FM27 week plan", "Plano semanal FM27"), &self.eff, std::slice::from_ref(&p));
                         self.after_export(r);
                     }
                 }
@@ -884,7 +853,7 @@ impl App {
                 plan_grid(ui, p);
                 if !p.notes.is_empty() {
                     ui.add_space(8.0);
-                    ui.label(theme::caps(t!("Buiten de training", "Beyond training")));
+                    ui.label(theme::caps(t!("Buiten de training", "Beyond training", "Extracurricular")));
                     for n in &p.notes {
                         ui.add(egui::Label::new(theme::dim(format!("• {n}"))).wrap());
                     }
@@ -900,30 +869,30 @@ impl App {
             ui.horizontal_wrapped(|ui| {
                 ui.label("Start");
                 ui.add(egui::TextEdit::singleline(&mut self.year_start).desired_width(96.0));
-                ui.label(t!("Competitie op", "League on"));
+                ui.label(t!("Competitie op", "League on", "Liga em"));
                 weekday_combo(ui, "league", &mut self.cal_opts.league_day);
-                ui.label(t!("Europees", "Europe"));
+                ui.label(t!("Europees", "Europe", "Competição Europeia"));
                 let mut e = self.cal_opts.europe;
                 egui::ComboBox::from_id_salt("europe")
                     .selected_text(match e {
-                        None => t!("geen", "none"),
-                        Some(Weekday::Tue) => t!("di (CL)", "Tue (CL)"),
-                        Some(Weekday::Wed) => t!("wo (CL)", "Wed (CL)"),
-                        _ => t!("do (EL/ECL)", "Thu (EL/ECL)"),
+                        None => t!("geen", "none", "nenhum"),
+                        Some(Weekday::Tue) => t!("di (CL)", "Tue (CL)", "Ter (Champions)"),
+                        Some(Weekday::Wed) => t!("wo (CL)", "Wed (CL)", "Qua (Champions)"),
+                        _ => t!("do (EL/ECL)", "Thu (EL/ECL)", "Qui (Europa/Conf.)"),
                     })
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut e, None, t!("geen", "none"));
-                        ui.selectable_value(&mut e, Some(Weekday::Tue), t!("di (CL)", "Tue (CL)"));
-                        ui.selectable_value(&mut e, Some(Weekday::Wed), t!("wo (CL)", "Wed (CL)"));
-                        ui.selectable_value(&mut e, Some(Weekday::Thu), t!("do (EL/ECL)", "Thu (EL/ECL)"));
+                        ui.selectable_value(&mut e, None, t!("geen", "none", "nenhum"));
+                        ui.selectable_value(&mut e, Some(Weekday::Tue), t!("di (CL)", "Tue (CL)", "Ter (Champions)"));
+                        ui.selectable_value(&mut e, Some(Weekday::Wed), t!("wo (CL)", "Wed (CL)", "Qua (Champions)"));
+                        ui.selectable_value(&mut e, Some(Weekday::Thu), t!("do (EL/ECL)", "Thu (EL/ECL)", "Qui (Europa/Conf.)"));
                     });
                 self.cal_opts.europe = e;
-                ui.checkbox(&mut self.cal_opts.cup, t!("beker", "cup"));
-                ui.add(egui::DragValue::new(&mut self.cal_opts.weeks).range(4..=60).suffix(t!(" weken", " weeks")));
+                ui.checkbox(&mut self.cal_opts.cup, t!("beker", "cup", "copa"));
+                ui.add(egui::DragValue::new(&mut self.cal_opts.weeks).range(4..=60).suffix(t!(" weken", " weeks", " semanas")));
             });
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                if theme::button(ui, icon::CALENDAR_BLANK, t!("Standaardkalender", "Default calendar"), true).clicked() {
+                if theme::button(ui, icon::CALENDAR_BLANK, t!("Standaardkalender", "Default calendar", "Calendário padrão"), true).clicked() {
                     if let Ok(d) = NaiveDate::parse_from_str(self.year_start.trim(), "%Y-%m-%d") {
                         self.cal_opts.start = d;
                     }
@@ -931,13 +900,13 @@ impl App {
                     self.year.clear();
                     self.save_calendar();
                 }
-                if theme::primary_button(ui, icon::SPARKLE, t!("Maak seizoensplan", "Build season plan"), true).clicked() {
+                if theme::primary_button(ui, icon::SPARKLE, t!("Maak seizoensplan", "Build season plan", "Gerar plano de temporada"), true).clicked() {
                     self.year = planner::plan_year(&self.calendar, &self.eff, &self.settings.planner);
                     self.save_calendar();
                 }
                 if !self.year.is_empty() {
-                    if theme::button(ui, icon::EXPORT, t!("Exporteer & open", "Export & open"), true).clicked() {
-                        let r = export::write_all(&export::output_dir(), "seasonplan", t!("FM27 seizoensplan", "FM27 season plan"), &self.eff, &self.year);
+                    if theme::button(ui, icon::EXPORT, t!("Exporteer & open", "Export & open", "Exportar e abrir"), true).clicked() {
+                        let r = export::write_all(&export::output_dir(), "seasonplan", t!("FM27 seizoensplan", "FM27 season plan", "Plano de temporada FM27"), &self.eff, &self.year);
                         self.after_export(r);
                     }
                     let (n, u) = (self.year.len(), unique_schedules(&self.year).len());
@@ -949,7 +918,7 @@ impl App {
         let mut edited = false;
         theme::card(ui, |ui| {
             egui::Grid::new("cal").num_columns(5).spacing([14.0, 8.0]).striped(true).show(ui, |ui| {
-                for h in [t!("Week van", "Week of"), t!("Periode", "Period"), t!("Wedstrijden", "Matches"), "Focus", t!("Tactisch", "Tactical")] {
+                for h in [t!("Week van", "Week of", "Semana de"), t!("Periode", "Period", "Período"), t!("Wedstrijden", "Matches", "Partidas"), "Focus", t!("Tactisch", "Tactical", "Tático")] {
                     ui.label(theme::caps(h));
                 }
                 ui.end_row();
@@ -1008,12 +977,12 @@ impl App {
         theme::page_header(
             ui,
             &name,
-            t!("Financiën live aanpassen. Wijzigingen blijven bewaard als je in FM opslaat.", "Edit finances live. Changes persist once you save in FM."),
+            t!("Financiën live aanpassen. Wijzigingen blijven bewaard als je in FM opslaat.", "Edit finances live. Changes persist once you save in FM.", "Edite finanças ao vivo. As mudanças persistem após salvar no FM."),
             |ui| {
-                if theme::button(ui, icon::ARROW_COUNTER_CLOCKWISE, t!("Ongedaan maken", "Undo"), connected && !busy).clicked() {
-                    action = Some((t!("ongedaan maken", "undo").into(), json!({"cmd": "undo"})));
+                if theme::button(ui, icon::ARROW_COUNTER_CLOCKWISE, t!("Ongedaan maken", "Undo", "Desfazer"), connected && !busy).clicked() {
+                    action = Some((t!("ongedaan maken", "undo", "desfazer").into(), json!({"cmd": "undo"})));
                 }
-                if theme::button(ui, icon::FLOPPY_DISK, t!("Backup saves", "Back up saves"), !busy).clicked() {
+                if theme::button(ui, icon::FLOPPY_DISK, t!("Backup saves", "Back up saves", "Backup de saves"), !busy).clicked() {
                     backup = true;
                 }
             },
@@ -1039,22 +1008,22 @@ impl App {
         let eur = |v: i64| format!("€ {}", money((v as f32 * rate) as i64));
         let gbp = |v: i64| format!("£ {}", money(v));
         ui.columns(3, |cols| {
-            theme::stat_tile(&mut cols[0], icon::COINS, t!("Saldo", "Balance"), &eur(g("balance")), &gbp(g("balance")), theme::INFO, None);
-            theme::stat_tile(&mut cols[1], icon::BANK, t!("Transferbudget", "Transfer budget"), &eur(g("transfer_budget")), &gbp(g("transfer_budget")), theme::ACCENT, None);
-            theme::stat_tile(&mut cols[2], icon::USERS_THREE, t!("Loonbudget p/w", "Wage budget p/w"), &eur(g("wage_budget")), &gbp(g("wage_budget")), theme::SUCCESS, None);
+            theme::stat_tile(&mut cols[0], icon::COINS, t!("Saldo", "Balance", "Saldo em caixa"), &eur(g("balance")), &gbp(g("balance")), theme::INFO, None);
+            theme::stat_tile(&mut cols[1], icon::BANK, t!("Transferbudget", "Transfer budget", "Orçamento de transferência"), &eur(g("transfer_budget")), &gbp(g("transfer_budget")), theme::ACCENT, None);
+            theme::stat_tile(&mut cols[2], icon::USERS_THREE, t!("Loonbudget p/w", "Wage budget p/w", "Orçamento de salários p/sem"), &eur(g("wage_budget")), &gbp(g("wage_budget")), theme::SUCCESS, None);
         });
         ui.add_space(14.0);
         ui.columns(2, |cols| {
             theme::card(&mut cols[0], |ui| {
-                ui.label(theme::h2(t!("Transferbudget", "Transfer budget")));
-                ui.label(theme::faint(t!("Bedrag in miljoen euro", "Amount in million euro")));
+                ui.label(theme::h2(t!("Transferbudget", "Transfer budget", "Orçamento de transferência")));
+                ui.label(theme::faint(t!("Bedrag in miljoen euro", "Amount in million euro", "Valor em milhões de euros")));
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     ui.add(egui::TextEdit::singleline(&mut self.live.transfer_input).hint_text("50").desired_width(90.0));
-                    ui.label(t!("mln €", "M €"));
-                    if theme::primary_button(ui, icon::CHECK_CIRCLE, t!("Zet", "Set"), !busy).clicked() {
+                    ui.label(t!("mln €", "M €", "M €"));
+                    if theme::primary_button(ui, icon::CHECK_CIRCLE, t!("Zet", "Set", "Definir"), !busy).clicked() {
                         if let Ok(m) = self.live.transfer_input.replace(',', ".").trim().parse::<f64>() {
-                            action = Some((t!("transferbudget", "transfer budget").into(), json!({"cmd": "set_finances", "transfer_budget": (m * 1e6 / rate as f64) as i64})));
+                            action = Some((t!("transferbudget", "transfer budget", "orçamento de transferência").into(), json!({"cmd": "set_finances", "transfer_budget": (m * 1e6 / rate as f64) as i64})));
                         }
                     }
                 });
@@ -1063,21 +1032,21 @@ impl App {
                     for add in [10, 25, 50, 100] {
                         if theme::small_button(ui, &format!("+€{add}M"), !busy).clicked() {
                             let v = g("transfer_budget") + (add as f64 * 1e6 / rate as f64) as i64;
-                            action = Some((t!("transferbudget", "transfer budget").into(), json!({"cmd": "set_finances", "transfer_budget": v})));
+                            action = Some((t!("transferbudget", "transfer budget", "orçamento de transferência").into(), json!({"cmd": "set_finances", "transfer_budget": v})));
                         }
                     }
                 });
             });
             theme::card(&mut cols[1], |ui| {
-                ui.label(theme::h2(t!("Loonbudget", "Wage budget")));
-                ui.label(theme::faint(t!("Bedrag in duizend euro per week", "Amount in thousand euro per week")));
+                ui.label(theme::h2(t!("Loonbudget", "Wage budget", "Orçamento salarial")));
+                ui.label(theme::faint(t!("Bedrag in duizend euro per week", "Amount in thousand euro per week", "Valor em milhares de euros por semana")));
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     ui.add(egui::TextEdit::singleline(&mut self.live.wage_input).hint_text("900").desired_width(90.0));
                     ui.label("k € p/w");
-                    if theme::primary_button(ui, icon::CHECK_CIRCLE, t!("Zet", "Set"), !busy).clicked() {
+                    if theme::primary_button(ui, icon::CHECK_CIRCLE, t!("Zet", "Set", "Definir"), !busy).clicked() {
                         if let Ok(k) = self.live.wage_input.replace(',', ".").trim().parse::<f64>() {
-                            action = Some((t!("loonbudget", "wage budget").into(), json!({"cmd": "set_finances", "wage_budget": (k * 1e3 / rate as f64) as i64})));
+                            action = Some((t!("loonbudget", "wage budget", "orçamento salarial").into(), json!({"cmd": "set_finances", "wage_budget": (k * 1e3 / rate as f64) as i64})));
                         }
                     }
                 });
@@ -1086,7 +1055,7 @@ impl App {
                     for add in [50, 100, 250] {
                         if theme::small_button(ui, &format!("+€{add}k"), !busy).clicked() {
                             let v = g("wage_budget") + (add as f64 * 1e3 / rate as f64) as i64;
-                            action = Some((t!("loonbudget", "wage budget").into(), json!({"cmd": "set_finances", "wage_budget": v})));
+                            action = Some((t!("loonbudget", "wage budget", "orçamento salarial").into(), json!({"cmd": "set_finances", "wage_budget": v})));
                         }
                     }
                 });
@@ -1101,17 +1070,14 @@ impl App {
         // de vlaggen van FM's in-game editor op je manager: registratie en rugnummers altijd
         let hf = self.live.human_flags.clone();
         theme::card(ui, |ui| {
-            ui.label(theme::h2(t!("Spelregels", "Rules")));
-            ui.label(theme::faint(t!(
-                "Dezelfde schakelaars als in FM's in-game editor, direct op je manager gezet. Controleer het in FM op het registratiescherm van de competitie.",
-                "The same switches as FM's in-game editor, set straight on your manager. Check it in FM on the competition's registration screen."
-            )));
+            ui.label(theme::h2(t!("Spelregels", "Rules", "Regras")));
+            ui.label(theme::faint(t!("Dezelfde schakelaars als in FM's in-game editor, direct op je manager gezet. Controleer het in FM op het registratiescherm van de competitie.", "The same switches as FM's in-game editor, set straight on your manager. Check it in FM on the competition's registration screen.", "As mesmas opções do editor in-game do FM, aplicadas diretamente ao seu treinador. Confira no FM na tela de inscrição da competição.")));
             ui.add_space(6.0);
             match hf.as_ref().and_then(|v| v.get("supported")).and_then(|v| v.as_bool()) {
                 Some(true) => {
                     let rows = [
-                        ("registration_anytime", t!("Spelers altijd registreren", "Register players anytime"), t!("Selectieregistratie ook buiten de registratieperiode (competitie, UEFA).", "Squad registration outside the registration window too (league, UEFA).")),
-                        ("numbers_anytime", t!("Rugnummers altijd aanpassen", "Change squad numbers anytime"), t!("Rugnummers ook wijzigen als de competitie ze heeft vastgezet.", "Change squad numbers even when the competition has locked them.")),
+                        ("registration_anytime", t!("Spelers altijd registreren", "Register players anytime", "Inscrever jogadores a qualquer momento"), t!("Selectieregistratie ook buiten de registratieperiode (competitie, UEFA).", "Squad registration outside the registration window too (league, UEFA).", "Inscrição de elenco fora da janela de transferências também (liga, UEFA).")),
+                        ("numbers_anytime", t!("Rugnummers altijd aanpassen", "Change squad numbers anytime", "Mudar números de camisa a qualquer momento"), t!("Rugnummers ook wijzigen als de competitie ze heeft vastgezet.", "Change squad numbers even when the competition has locked them.", "Alterar números mesmo quando a competição os tiver bloqueado.")),
                     ];
                     for (key, label, hint) in rows {
                         let mut on = hf.as_ref().and_then(|v| v.get(key)).and_then(|v| v.as_bool()).unwrap_or(false);
@@ -1128,10 +1094,10 @@ impl App {
                     }
                 }
                 Some(false) => {
-                    ui.label(theme::faint(t!("Op deze FM-versie of dit platform nog niet beschikbaar.", "Not available on this FM build or platform yet.")));
+                    ui.label(theme::faint(t!("Op deze FM-versie of dit platform nog niet beschikbaar.", "Not available on this FM build or platform yet.", "Ainda não disponível nesta versão do FM ou plataforma.")));
                 }
                 None => {
-                    ui.label(theme::faint(t!("Nog niet uitgelezen.", "Not read yet.")));
+                    ui.label(theme::faint(t!("Nog niet uitgelezen.", "Not read yet.", "Ainda não lido.")));
                 }
             }
         });
@@ -1151,16 +1117,16 @@ impl App {
         let mut sell: Option<u32> = None;
         let n = self.live.squad.len();
         let subtitle = t!(format!("{n} spelers · {injured} geblesseerd · {banned} geschorst"), format!("{n} players · {injured} injured · {banned} suspended"));
-        theme::page_header(ui, t!("Selectie", "Squad"), &subtitle, |ui| {
-            if theme::button(ui, icon::SMILEY, t!("Moraal top voor iedereen", "Max morale for all"), connected && !busy).clicked() {
-                action = Some((t!("moraal", "morale").into(), json!({"cmd": "inspire", "morale": 20, "clear_unhappiness": true})));
+        theme::page_header(ui, t!("Selectie", "Squad", "Elenco"), &subtitle, |ui| {
+            if theme::button(ui, icon::SMILEY, t!("Moraal top voor iedereen", "Max morale for all", "Moral máxima para todos"), connected && !busy).clicked() {
+                action = Some((t!("moraal", "morale", "moral").into(), json!({"cmd": "inspire", "morale": 20, "clear_unhappiness": true})));
             }
-            if theme::button(ui, icon::WARNING, t!("Schorsingen opheffen", "Lift suspensions"), connected && !busy && banned > 0).clicked() {
-                action = Some((t!("schorsingen", "suspensions").into(), json!({"cmd": "lift_bans"})));
+            if theme::button(ui, icon::WARNING, t!("Schorsingen opheffen", "Lift suspensions", "Anular suspensões"), connected && !busy && banned > 0).clicked() {
+                action = Some((t!("schorsingen", "suspensions", "suspensões").into(), json!({"cmd": "lift_bans"})));
             }
             let heal = t!(format!("Genees iedereen ({injured})"), format!("Heal all ({injured})"));
             if theme::primary_button(ui, icon::FIRST_AID, &heal, connected && !busy && injured > 0).clicked() {
-                action = Some((t!("genezen", "healing").into(), json!({"cmd": "heal"})));
+                action = Some((t!("genezen", "healing", "curando").into(), json!({"cmd": "heal"})));
             }
         });
         let (m, e) = (self.live.status.clone(), self.live.status_error);
@@ -1188,18 +1154,15 @@ impl App {
         theme::card(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
-                    ui.label(theme::h2(t!("Tactisch begrip", "Tactical understanding")));
+                    ui.label(theme::h2(t!("Tactisch begrip", "Tactical understanding", "Entendimento tático")));
                     ui.add(
-                        egui::Label::new(theme::faint(t!(
-                            "Hoe goed de selectie je huidige tactiek kent, per onderdeel (gemiddelde van de spelers). Maximaliseren doet wat de in-game editor van FM doet: alles naar 100 %.",
-                            "How well the squad knows your current tactic, per area (average over the players). Maximise does what FM's in-game editor does: everything to 100%."
-                        )))
+                        egui::Label::new(theme::faint(t!("Hoe goed de selectie je huidige tactiek kent, per onderdeel (gemiddelde van de spelers). Maximaliseren doet wat de in-game editor van FM doet: alles naar 100 %.", "How well the squad knows your current tactic, per area (average over the players). Maximise does what FM's in-game editor does: everything to 100%.", "Quão bem o elenco conhece sua tática atual, por área (média dos atletas). Maximizar faz o mesmo que o editor in-game: coloca tudo em 100%.")))
                         .wrap(),
                     );
                 });
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                    if theme::primary_button(ui, icon::BRAIN, t!("Maximaliseer tactisch begrip", "Maximise tactical understanding"), connected && !busy).clicked() {
-                        action = Some((t!("tactisch begrip", "tactical understanding").into(), json!({"cmd": "max_understanding"})));
+                    if theme::primary_button(ui, icon::BRAIN, t!("Maximaliseer tactisch begrip", "Maximise tactical understanding", "Maximizar entendimento tático"), connected && !busy).clicked() {
+                        action = Some((t!("tactisch begrip", "tactical understanding", "entendimento tático").into(), json!({"cmd": "max_understanding"})));
                     }
                 });
             });
@@ -1224,7 +1187,7 @@ impl App {
                     }
                 }
                 _ => {
-                    ui.label(theme::faint(t!("Nog niet uitgelezen.", "Not read yet.")));
+                    ui.label(theme::faint(t!("Nog niet uitgelezen.", "Not read yet.", "Ainda não lido.")));
                 }
             }
             // FM laat het begrip elke speelweek een stuk zakken: op verzoek houdt de app het op 100 %
@@ -1234,20 +1197,17 @@ impl App {
                 if theme::toggle(ui, &mut self.settings.keep_understanding).changed() {
                     self.save_settings();
                 }
-                ui.label(theme::label_strong(t!("Op 100 % houden", "Keep at 100%")));
-                ui.label(RichText::new(if keep { t!("AAN", "ON") } else { t!("UIT", "OFF") }).strong().color(if keep { theme::SUCCESS } else { theme::TEXT_FAINT }));
+                ui.label(theme::label_strong(t!("Op 100 % houden", "Keep at 100%", "Manter em 100%")));
+                ui.label(RichText::new(if keep { t!("AAN", "ON", "LIGADO") } else { t!("UIT", "OFF", "DESLIGADO") }).strong().color(if keep { theme::SUCCESS } else { theme::TEXT_FAINT }));
                 ui.add(
-                    egui::Label::new(theme::faint(t!(
-                        "Zolang de app open is, zet hij elke 20 seconden terug wat FM heeft laten zakken (FM Live Editor doet dit niet vanzelf).",
-                        "While the app is open, every 20 seconds it puts back whatever FM has let drop (FM Live Editor does not do this by itself)."
-                    )))
+                    egui::Label::new(theme::faint(t!("Zolang de app open is, zet hij elke 20 seconden terug wat FM heeft laten zakken (FM Live Editor doet dit niet vanzelf).", "While the app is open, every 20 seconds it puts back whatever FM has let drop (FM Live Editor does not do this by itself).", "Com o app aberto, a cada 20 segundos ele restaura qualquer queda de entrosamento que o FM causar (o Live Editor não faz isso sozinho).")))
                     .wrap(),
                 );
             });
         });
         theme::card(ui, |ui| {
             egui::Grid::new("squad").num_columns(8).spacing([18.0, 10.0]).striped(true).show(ui, |ui| {
-                for h in [t!("Speler", "Player"), t!("Moraal", "Morale"), t!("Conditie", "Condition"), t!("Begrip", "Understanding"), t!("Blessure", "Injury"), t!("Schorsing", "Ban"), t!("Ontevreden", "Unhappy"), ""] {
+                for h in [t!("Speler", "Player", "Jogador"), t!("Moraal", "Morale", "Moral"), t!("Conditie", "Condition", "Condição"), t!("Begrip", "Understanding", "Entendimento"), t!("Blessure", "Injury", "Lesão"), t!("Schorsing", "Ban", "Suspensão"), t!("Ontevreden", "Unhappy", "Insatisfeito"), ""] {
                     ui.label(theme::caps(h));
                 }
                 ui.end_row();
@@ -1281,25 +1241,25 @@ impl App {
                     }
                     let bans = p.get("bans").and_then(|v| v.as_u64()).unwrap_or(0);
                     if bans > 0 {
-                        theme::pill(ui, t!("geschorst", "suspended"), theme::WARNING);
+                        theme::pill(ui, t!("geschorst", "suspended", "suspenso"), theme::WARNING);
                     } else {
                         ui.label(theme::faint("—"));
                     }
                     let unhappy = p.get("unhappy_reasons").and_then(|v| v.as_bool()).unwrap_or(false);
                     if unhappy {
-                        theme::pill(ui, t!("ja", "yes"), theme::WARNING);
+                        theme::pill(ui, t!("ja", "yes", "sim"), theme::WARNING);
                     } else {
                         ui.label(theme::faint("—"));
                     }
                     ui.horizontal(|ui| {
-                        if !inj.is_empty() && theme::small_button(ui, t!("Genees", "Heal"), !busy).clicked() {
-                            action = Some((t!("genezen", "healing").into(), json!({"cmd": "heal", "uids": [uid]})));
+                        if !inj.is_empty() && theme::small_button(ui, t!("Genees", "Heal", "Curar"), !busy).clicked() {
+                            action = Some((t!("genezen", "healing", "curando").into(), json!({"cmd": "heal", "uids": [uid]})));
                         }
-                        if (m < 20 || unhappy) && theme::small_button(ui, t!("Inspireer", "Inspire"), !busy).clicked() {
-                            action = Some((t!("moraal", "morale").into(), json!({"cmd": "inspire", "uids": [uid], "morale": 20, "clear_unhappiness": true})));
+                        if (m < 20 || unhappy) && theme::small_button(ui, t!("Inspireer", "Inspire", "Inspirar"), !busy).clicked() {
+                            action = Some((t!("moraal", "morale", "moral").into(), json!({"cmd": "inspire", "uids": [uid], "morale": 20, "clear_unhappiness": true})));
                         }
                         let coach = p.get("player_coach").and_then(|v| v.as_bool()).unwrap_or(false);
-                        if !coach && theme::small_button(ui, t!("Verkoop", "Sell"), !busy).clicked() {
+                        if !coach && theme::small_button(ui, t!("Verkoop", "Sell", "Vender"), !busy).clicked() {
                             sell = Some(uid as u32);
                         }
                     });
@@ -1338,25 +1298,19 @@ impl App {
             ui,
             "Transfers",
             if buying {
-                t!(
-                    "Haal een speler van een andere club direct naar je eerste elftal. Jij betaalt de transfersom.",
-                    "Bring a player from another club straight into your first team. You pay the fee."
-                )
+                t!("Haal een speler van een andere club direct naar je eerste elftal. Jij betaalt de transfersom.", "Bring a player from another club straight into your first team. You pay the fee.", "Traga um jogador de outro clube direto para o seu time principal. Você paga a taxa.")
             } else {
-                t!(
-                    "Verkoop een speler direct aan een club naar keuze. De transfersom wordt meteen geboekt.",
-                    "Sell a player straight to a club of your choice. The fee is booked at once."
-                )
+                t!("Verkoop een speler direct aan een club naar keuze. De transfersom wordt meteen geboekt.", "Sell a player straight to a club of your choice. The fee is booked at once.", "Venda um jogador diretamente para o clube de sua escolha. O valor entra imediatamente.")
             },
             |ui| {
-                if theme::button(ui, icon::ARROW_COUNTER_CLOCKWISE, t!("Ongedaan maken", "Undo"), connected && !busy).clicked() {
+                if theme::button(ui, icon::ARROW_COUNTER_CLOCKWISE, t!("Ongedaan maken", "Undo", "Desfazer"), connected && !busy).clicked() {
                     undo = true;
                 }
             },
         );
         if undo {
             self.live.sell.plan = None;
-            self.live.refresh(ctx, t!("ongedaan maken", "undo"), Some(json!({"cmd": "undo"})));
+            self.live.refresh(ctx, t!("ongedaan maken", "undo", "desfazer"), Some(json!({"cmd": "undo"})));
         }
         let (m, e) = (self.live.status.clone(), self.live.status_error);
         if !m.is_empty() && (e || undo) {
@@ -1369,7 +1323,7 @@ impl App {
             return;
         }
         let mut buy = self.live.sell.buy;
-        if theme::segmented(ui, &mut buy, &[(false, t!("Verkopen", "Sell")), (true, t!("Kopen", "Buy"))]) {
+        if theme::segmented(ui, &mut buy, &[(false, t!("Verkopen", "Sell", "Vender")), (true, t!("Kopen", "Buy", "Comprar"))]) {
             self.live.sell.buy = buy;
             self.live.sell.plan = None;
             self.live.sell.status.clear();
@@ -1391,8 +1345,8 @@ impl App {
         ui.columns(2, |cols| {
             // 1. speler
             theme::card(&mut cols[0], |ui| {
-                ui.label(theme::h2(t!("1 · Speler", "1 · Player")));
-                ui.label(theme::faint(t!("Kies wie je wilt verkopen.", "Choose who to sell.")));
+                ui.label(theme::h2(t!("1 · Speler", "1 · Player", "1 · Jogador")));
+                ui.label(theme::faint(t!("Kies wie je wilt verkopen.", "Choose who to sell.", "Escolha quem deseja vender.")));
                 ui.add_space(6.0);
                 ScrollArea::vertical().id_salt("sell_players").max_height(430.0).show(ui, |ui| {
                     let mut sorted = squad.clone();
@@ -1405,18 +1359,18 @@ impl App {
                         let until = p.get("contract_ends").and_then(|d| d.get("year")).and_then(|y| y.as_u64());
                         let selected = self.live.sell.player == Some(uid);
                         ui.horizontal(|ui| {
-                            let label = if coach { format!("{name} · {}", t!("speler-trainer", "player-coach")) } else { name.to_string() };
+                            let label = if coach { format!("{name} · {}", t!("speler-trainer", "player-coach", "jogador-treinador")) } else { name.to_string() };
                             let r = ui.add_enabled(!coach, egui::SelectableLabel::new(selected, RichText::new(label).size(14.0)));
                             if r.clicked() {
                                 pick = Some(uid);
                             }
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                 if let Some(y) = until {
-                                    ui.label(theme::faint(format!("{} {y}", t!("tot", "until"))));
+                                    ui.label(theme::faint(format!("{} {y}", t!("tot", "until", "até"))));
                                 }
                                 ui.label(RichText::new(eur(value)).color(theme::TEXT));
                                 if p.get("listed").and_then(|v| v.as_u64()).unwrap_or(0) & 1 == 1 {
-                                    theme::pill(ui, t!("transferlijst", "listed"), theme::WARNING);
+                                    theme::pill(ui, t!("transferlijst", "listed", "listado"), theme::WARNING);
                                 }
                             });
                         });
@@ -1427,14 +1381,14 @@ impl App {
             // 2. koper en 3. bedrag
             let ui = &mut cols[1];
             theme::card(ui, |ui| {
-                ui.label(theme::h2(t!("2 · Koper", "2 · Buyer")));
+                ui.label(theme::h2(t!("2 · Koper", "2 · Buyer", "2 · Comprador")));
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    let r = ui.add(egui::TextEdit::singleline(&mut self.live.sell.query).hint_text(t!("Zoek een club, bijv. AC Milan", "Search a club, e.g. AC Milan")).desired_width(260.0));
+                    let r = ui.add(egui::TextEdit::singleline(&mut self.live.sell.query).hint_text(t!("Zoek een club, bijv. AC Milan", "Search a club, e.g. AC Milan", "Buscar clube, ex: Real Madrid")).desired_width(260.0));
                     if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                         search = true;
                     }
-                    if theme::small_button(ui, t!("Zoek", "Search"), !busy && self.live.sell.query.trim().len() >= 2).clicked() {
+                    if theme::small_button(ui, t!("Zoek", "Search", "Buscar"), !busy && self.live.sell.query.trim().len() >= 2).clicked() {
                         search = true;
                     }
                 });
@@ -1455,23 +1409,23 @@ impl App {
                             self.live.sell.plan = None;
                         }
                         if c.get("women").and_then(|v| v.as_bool()).unwrap_or(false) {
-                            theme::pill(ui, t!("vrouwen", "women"), theme::INFO);
+                            theme::pill(ui, t!("vrouwen", "women", "feminino"), theme::INFO);
                         }
                     });
                 }
                 if clubs.is_empty() && !self.live.sell.searched.is_empty() && !self.live.sell_busy() {
-                    ui.label(theme::faint(t!("Geen clubs gevonden.", "No clubs found.")));
+                    ui.label(theme::faint(t!("Geen clubs gevonden.", "No clubs found.", "Nenhum clube encontrado.")));
                 }
             });
             ui.add_space(12.0);
             theme::card(ui, |ui| {
-                ui.label(theme::h2(t!("3 · Bedrag", "3 · Fee")));
+                ui.label(theme::h2(t!("3 · Bedrag", "3 · Fee", "3 · Valor da transferência")));
                 ui.add_space(4.0);
                 let value = chosen.as_ref().and_then(|p| p.get("value")).and_then(|v| v.as_i64()).unwrap_or(0);
                 ui.horizontal(|ui| {
                     ui.add(egui::TextEdit::singleline(&mut self.live.sell.fee_input).hint_text("10").desired_width(90.0));
-                    ui.label(t!("mln €", "M €"));
-                    for (label, f) in [(t!("waarde", "value"), 1.0), ("×1.5", 1.5), ("×2", 2.0), ("×3", 3.0)] {
+                    ui.label(t!("mln €", "M €", "M €"));
+                    for (label, f) in [(t!("waarde", "value", "valor"), 1.0), ("×1.5", 1.5), ("×2", 2.0), ("×3", 3.0)] {
                         if theme::small_button(ui, label, value > 0).clicked() {
                             self.live.sell.fee_input = format!("{:.1}", value as f64 * f * rate / 1e6);
                         }
@@ -1479,8 +1433,8 @@ impl App {
                 });
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    ui.label(t!("Nieuw salaris", "New wage"));
-                    ui.add(egui::TextEdit::singleline(&mut self.live.sell.wage_input).hint_text(t!("blijft", "unchanged")).desired_width(90.0));
+                    ui.label(t!("Nieuw salaris", "New wage", "Novo salário"));
+                    ui.add(egui::TextEdit::singleline(&mut self.live.sell.wage_input).hint_text(t!("blijft", "unchanged", "inalterado")).desired_width(90.0));
                     ui.label("k € p/w");
                 });
                 let fee = self.live.sell.fee_input.replace(',', ".").trim().parse::<f64>().ok().map(|m| (m * 1e6 / rate).round() as i64);
@@ -1491,7 +1445,7 @@ impl App {
                 };
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    if theme::button(ui, icon::MAGNIFYING_GLASS, t!("Controleer", "Check"), key.is_some() && !busy).clicked() {
+                    if theme::button(ui, icon::MAGNIFYING_GLASS, t!("Controleer", "Check", "Verificar"), key.is_some() && !busy).clicked() {
                         check = key;
                     }
                     let ready = self.live.sell.plan.as_ref().is_some_and(|(v, k)| Some(*k) == key && v.get("allowed").and_then(|a| a.as_bool()) == Some(true));
@@ -1500,7 +1454,7 @@ impl App {
                             format!("Verkoop {} aan {}", p.get("name").and_then(|v| v.as_str()).unwrap_or("?"), c),
                             format!("Sell {} to {}", p.get("name").and_then(|v| v.as_str()).unwrap_or("?"), c)
                         ),
-                        _ => t!("Verkoop", "Sell").to_string(),
+                        _ => t!("Verkoop", "Sell", "Vender").to_string(),
                     };
                     if theme::primary_button(ui, icon::HANDSHAKE, &label, ready && !busy).clicked() {
                         confirm = key;
@@ -1532,10 +1486,10 @@ impl App {
                             lines.push(t!(format!("Zijn plek in {} opstelling(en) wordt leeg.", i("selections")), format!("His place in {} selection(s) is emptied.", i("selections"))));
                         }
                         if b("was_captain") {
-                            lines.push(t!("Hij was aanvoerder: de band is vrij voor iemand anders.", "He was captain: the armband is free for someone else.").into());
+                            lines.push(t!("Hij was aanvoerder: de band is vrij voor iemand anders.", "He was captain: the armband is free for someone else.", "Ele era o capitão: a braçadeira agora está vaga para outro jogador.").into());
                         }
                         if !b("allowed") {
-                            lines.push(t!("Deze FM-versie is niet getest: sta aanpassen eerst toe in Instellingen.", "This FM build is untested: allow changes in Settings first.").into());
+                            lines.push(t!("Deze FM-versie is niet getest: sta aanpassen eerst toe in Instellingen.", "This FM build is untested: allow changes in Settings first.", "Esta versão do FM não foi testada: permita alterações nas Configurações primeiro.").into());
                         }
                         for l in lines {
                             ui.horizontal_wrapped(|ui| {
@@ -1549,13 +1503,13 @@ impl App {
         });
         ui.add_space(12.0);
         theme::card(ui, |ui| {
-            ui.label(theme::h2(t!("Goed om te weten", "Good to know")));
+            ui.label(theme::h2(t!("Goed om te weten", "Good to know", "Informações úteis")));
             ui.add_space(4.0);
             for l in [
-                t!("Dit is een directe verkoop, geen bod: FM zet de transfer niet in het nieuws of de transferhistorie.", "This is a direct sale, not an offer: FM does not put the transfer in the news or the transfer history."),
-                t!("De speler krijgt bij de koper hetzelfde contract (of het nieuwe salaris), vanaf vandaag, zonder rugnummer.", "The player keeps his contract at the buyer (or the new wage), from today, without a squad number."),
-                t!("Ongedaan maken zet alles terug zolang je nog niet verder hebt gespeeld. Maak eerst een backup en sla pas op als alles klopt.", "Undo puts everything back as long as you have not played on. Back up first and only save when everything is right."),
-                t!("Speler-trainers en gehuurde spelers kunnen (nog) niet worden verkocht.", "Player-coaches and loaned players cannot be sold (yet)."),
+                t!("Dit is een directe verkoop, geen bod: FM zet de transfer niet in het nieuws of de transferhistorie.", "This is a direct sale, not an offer: FM does not put the transfer in the news or the transfer history.", "Esta é uma venda direta, não uma proposta: o FM não coloca a transferência nas notícias nem no histórico de transferências."),
+                t!("De speler krijgt bij de koper hetzelfde contract (of het nieuwe salaris), vanaf vandaag, zonder rugnummer.", "The player keeps his contract at the buyer (or the new wage), from today, without a squad number.", "O jogador mantém o contrato no comprador (ou o novo salário), a partir de hoje, sem número de camisa definido."),
+                t!("Ongedaan maken zet alles terug zolang je nog niet verder hebt gespeeld. Maak eerst een backup en sla pas op als alles klopt.", "Undo puts everything back as long as you have not played on. Back up first and only save when everything is right.", "O desfazer restaura tudo desde que você não tenha avançado o jogo. Faça backup primeiro e só salve quando tudo estiver certo."),
+                t!("Speler-trainers en gehuurde spelers kunnen (nog) niet worden verkocht.", "Player-coaches and loaned players cannot be sold (yet).", "Jogadores-treinadores e emprestados não podem ser vendidos (ainda)."),
             ] {
                 ui.horizontal_wrapped(|ui| {
                     ui.label(theme::ic(icon::INFO).color(theme::INFO));
@@ -1595,14 +1549,14 @@ impl App {
         ui.columns(2, |cols| {
             // 1. club
             theme::card(&mut cols[0], |ui| {
-                ui.label(theme::h2(t!("1 · Club", "1 · Club")));
+                ui.label(theme::h2(t!("1 · Club", "1 · Club", "1 · Clube")));
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    let r = ui.add(egui::TextEdit::singleline(&mut self.live.sell.query).hint_text(t!("Zoek een club, bijv. Real Madrid", "Search a club, e.g. Real Madrid")).desired_width(260.0));
+                    let r = ui.add(egui::TextEdit::singleline(&mut self.live.sell.query).hint_text(t!("Zoek een club, bijv. Real Madrid", "Search a club, e.g. Real Madrid", "Buscar clube, ex: São Paulo FC")).desired_width(260.0));
                     if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                         search = true;
                     }
-                    if theme::small_button(ui, t!("Zoek", "Search"), !busy && self.live.sell.query.trim().len() >= 2).clicked() {
+                    if theme::small_button(ui, t!("Zoek", "Search", "Buscar"), !busy && self.live.sell.query.trim().len() >= 2).clicked() {
                         search = true;
                     }
                 });
@@ -1623,21 +1577,21 @@ impl App {
                             load = Some(uid);
                         }
                         if c.get("women").and_then(|v| v.as_bool()).unwrap_or(false) {
-                            theme::pill(ui, t!("vrouwen", "women"), theme::INFO);
+                            theme::pill(ui, t!("vrouwen", "women", "feminino"), theme::INFO);
                         }
                     });
                 }
                 if clubs.is_empty() && !self.live.sell.searched.is_empty() && !self.live.sell_busy() {
-                    ui.label(theme::faint(t!("Geen clubs gevonden.", "No clubs found.")));
+                    ui.label(theme::faint(t!("Geen clubs gevonden.", "No clubs found.", "Nenhum clube encontrado.")));
                 }
             });
             cols[0].add_space(12.0);
             // 2. speler
             theme::card(&mut cols[0], |ui| {
-                ui.label(theme::h2(t!("2 · Speler", "2 · Player")));
+                ui.label(theme::h2(t!("2 · Speler", "2 · Player", "2 · Jogador")));
                 match &club {
                     None => {
-                        ui.label(theme::faint(t!("Kies eerst een club.", "Choose a club first.")));
+                        ui.label(theme::faint(t!("Kies eerst een club.", "Choose a club first.", "Escolha um clube primeiro.")));
                     }
                     Some((_, name)) => {
                         ui.label(theme::faint(t!(format!("Eerste elftal van {name}, duurste eerst."), format!("First team of {name}, most valuable first."))));
@@ -1655,13 +1609,13 @@ impl App {
                                 let until = p.get("contract_ends").and_then(|d| d.get("year")).and_then(|y| y.as_u64());
                                 let selected = self.live.sell.buy_player == Some(uid);
                                 ui.horizontal(|ui| {
-                                    let label = if coach { format!("{pname} · {}", t!("speler-trainer", "player-coach")) } else { pname.to_string() };
+                                    let label = if coach { format!("{pname} · {}", t!("speler-trainer", "player-coach", "jogador-treinador")) } else { pname.to_string() };
                                     if ui.add_enabled(!coach, egui::SelectableLabel::new(selected, RichText::new(label).size(14.0))).clicked() {
                                         pick = Some((uid, value, wage));
                                     }
                                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                         if let Some(y) = until {
-                                            ui.label(theme::faint(format!("{} {y}", t!("tot", "until"))));
+                                            ui.label(theme::faint(format!("{} {y}", t!("tot", "until", "até"))));
                                         }
                                         if let Some(w) = wage {
                                             ui.label(theme::faint(format!("{} p/w", eur(w))));
@@ -1678,13 +1632,13 @@ impl App {
             // 3. bedrag
             let ui = &mut cols[1];
             theme::card(ui, |ui| {
-                ui.label(theme::h2(t!("3 · Bedrag", "3 · Fee")));
+                ui.label(theme::h2(t!("3 · Bedrag", "3 · Fee", "3 · Valor da transferência")));
                 ui.add_space(4.0);
                 let value = chosen.as_ref().and_then(|p| p.get("value")).and_then(|v| v.as_i64()).unwrap_or(0);
                 ui.horizontal(|ui| {
                     ui.add(egui::TextEdit::singleline(&mut self.live.sell.fee_input).hint_text("10").desired_width(90.0));
-                    ui.label(t!("mln €", "M €"));
-                    for (label, f) in [(t!("waarde", "value"), 1.0), ("×0.5", 0.5), ("×1.5", 1.5), ("0", 0.0)] {
+                    ui.label(t!("mln €", "M €", "M €"));
+                    for (label, f) in [(t!("waarde", "value", "valor"), 1.0), ("×0.5", 0.5), ("×1.5", 1.5), ("0", 0.0)] {
                         if theme::small_button(ui, label, value > 0).clicked() {
                             self.live.sell.fee_input = format!("{:.1}", value as f64 * f * rate / 1e6);
                         }
@@ -1692,8 +1646,8 @@ impl App {
                 });
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    ui.label(t!("Salaris bij jou", "Wage with you"));
-                    ui.add(egui::TextEdit::singleline(&mut self.live.sell.wage_input).hint_text(t!("blijft", "unchanged")).desired_width(90.0));
+                    ui.label(t!("Salaris bij jou", "Wage with you", "Salário no seu clube"));
+                    ui.add(egui::TextEdit::singleline(&mut self.live.sell.wage_input).hint_text(t!("blijft", "unchanged", "inalterado")).desired_width(90.0));
                     ui.label("k € p/w");
                 });
                 let fee = self.live.sell.fee_input.replace(',', ".").trim().parse::<f64>().ok().map(|m| (m * 1e6 / rate).round() as i64);
@@ -1704,7 +1658,7 @@ impl App {
                 };
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    if theme::button(ui, icon::MAGNIFYING_GLASS, t!("Controleer", "Check"), key.is_some() && !busy).clicked() {
+                    if theme::button(ui, icon::MAGNIFYING_GLASS, t!("Controleer", "Check", "Verificar"), key.is_some() && !busy).clicked() {
                         check = key;
                     }
                     let ready = self.live.sell.plan.as_ref().is_some_and(|(v, k)| Some(*k) == key && v.get("allowed").and_then(|a| a.as_bool()) == Some(true));
@@ -1713,7 +1667,7 @@ impl App {
                             format!("Koop {} van {}", p.get("name").and_then(|v| v.as_str()).unwrap_or("?"), c),
                             format!("Buy {} from {}", p.get("name").and_then(|v| v.as_str()).unwrap_or("?"), c)
                         ),
-                        _ => t!("Koop", "Buy").to_string(),
+                        _ => t!("Koop", "Buy", "Comprar").to_string(),
                     };
                     if theme::primary_button(ui, icon::USER_PLUS, &label, ready && !busy).clicked() {
                         confirm = key;
@@ -1745,7 +1699,7 @@ impl App {
                             lines.push(t!(format!("Hij was aanvoerder bij {}; die band wordt daar vrij.", s("from")), format!("He was captain at {}; that armband becomes free there.", s("from"))));
                         }
                         if !b("allowed") {
-                            lines.push(t!("Deze FM-versie is niet getest: sta aanpassen eerst toe in Instellingen.", "This FM build is untested: allow changes in Settings first.").into());
+                            lines.push(t!("Deze FM-versie is niet getest: sta aanpassen eerst toe in Instellingen.", "This FM build is untested: allow changes in Settings first.", "Esta versão do FM não foi testada: permita alterações nas Configurações primeiro.").into());
                         }
                         for l in lines {
                             ui.horizontal_wrapped(|ui| {
@@ -1759,13 +1713,13 @@ impl App {
         });
         ui.add_space(12.0);
         theme::card(ui, |ui| {
-            ui.label(theme::h2(t!("Goed om te weten", "Good to know")));
+            ui.label(theme::h2(t!("Goed om te weten", "Good to know", "Informações úteis")));
             ui.add_space(4.0);
             for l in [
-                t!("Dit is een directe overgang, geen bod: FM zet de transfer niet in het nieuws of de transferhistorie.", "This is a direct move, not an offer: FM does not put the transfer in the news or the transfer history."),
-                t!("De speler houdt zijn huidige contract (of krijgt het nieuwe salaris), vanaf vandaag bij jou, zonder rugnummer. Geef hem in FM een rugnummer en registreer hem waar nodig.", "The player keeps his current contract (or gets the new wage), from today at your club, without a squad number. Give him a number in FM and register him where needed."),
-                t!("Ongedaan maken zet alles terug zolang je nog niet verder hebt gespeeld. Maak eerst een backup en sla pas op als alles klopt.", "Undo puts everything back as long as you have not played on. Back up first and only save when everything is right."),
-                t!("Speler-trainers en gehuurde spelers kunnen (nog) niet worden overgenomen.", "Player-coaches and loaned players cannot be taken over (yet)."),
+                t!("Dit is een directe overgang, geen bod: FM zet de transfer niet in het nieuws of de transferhistorie.", "This is a direct move, not an offer: FM does not put the transfer in the news or the transfer history.", "Esta é uma transferência direta, não uma proposta: o FM não coloca a transação nas notícias ou histórico."),
+                t!("De speler houdt zijn huidige contract (of krijgt het nieuwe salaris), vanaf vandaag bij jou, zonder rugnummer. Geef hem in FM een rugnummer en registreer hem waar nodig.", "The player keeps his current contract (or gets the new wage), from today at your club, without a squad number. Give him a number in FM and register him where needed.", "O jogador mantém seu contrato atual (ou recebe o novo salário), a partir de hoje no seu clube, sem número. Atribua o número e registre-o no FM."),
+                t!("Ongedaan maken zet alles terug zolang je nog niet verder hebt gespeeld. Maak eerst een backup en sla pas op als alles klopt.", "Undo puts everything back as long as you have not played on. Back up first and only save when everything is right.", "O desfazer restaura tudo desde que você não tenha avançado o jogo. Faça backup primeiro e só salve quando tudo estiver certo."),
+                t!("Speler-trainers en gehuurde spelers kunnen (nog) niet worden overgenomen.", "Player-coaches and loaned players cannot be taken over (yet).", "Jogadores-treinadores e emprestados não podem ser contratados (ainda)."),
             ] {
                 ui.horizontal_wrapped(|ui| {
                     ui.label(theme::ic(icon::INFO).color(theme::INFO));
@@ -1796,17 +1750,17 @@ impl App {
     // -------------------------------------------------------------------- instellingen
 
     fn page_settings(&mut self, ui: &mut Ui) {
-        theme::page_header(ui, t!("Instellingen", "Settings"), "", |_| {});
+        theme::page_header(ui, t!("Instellingen", "Settings", "Configurações"), "", |_| {});
         let mut dirty = false;
         ui.columns(2, |cols| {
             theme::card(&mut cols[0], |ui| {
-                ui.label(theme::h2(t!("Algemeen", "General")));
+                ui.label(theme::h2(t!("Algemeen", "General", "Geral")));
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     ui.label(theme::ic(icon::TRANSLATE).color(theme::ACCENT));
-                    ui.label(t!("Taal", "Language"));
+                    ui.label(t!("Taal", "Language", "Idioma"));
                     let mut lang = self.settings.lang;
-                    if theme::segmented(ui, &mut lang, &[(Lang::Nl, "Nederlands"), (Lang::En, "English")]) {
+                    if theme::segmented(ui, &mut lang, &[(Lang::Nl, "Nederlands"), (Lang::En, "English"), (Lang::PtBr, "Português")]) {
                         self.settings.lang = lang;
                         i18n::set(lang);
                         dirty = true;
@@ -1814,24 +1768,24 @@ impl App {
                 });
                 ui.horizontal(|ui| {
                     ui.label(theme::ic(icon::COINS).color(theme::ACCENT));
-                    ui.label(t!("Koers € per £", "Rate € per £"));
+                    ui.label(t!("Koers € per £", "Rate € per £", "Cotação € por £"));
                     dirty |= ui.add(egui::DragValue::new(&mut self.settings.rate).range(0.5..=2.0).speed(0.01).fixed_decimals(2)).changed();
                 });
-                dirty |= ui.checkbox(&mut self.settings.capture_delay, t!("FM eerst naar voren halen bij uitlezen", "Bring FM to front before reading")).changed();
+                dirty |= ui.checkbox(&mut self.settings.capture_delay, t!("FM eerst naar voren halen bij uitlezen", "Bring FM to front before reading", "Trazer FM para frente antes da leitura")).changed();
             });
             theme::card(&mut cols[1], |ui| {
                 ui.label(theme::h2("Planner"));
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
-                    ui.label(t!("Team Bonding onder Buy-In", "Team Bonding below Buy-In"));
+                    ui.label(t!("Team Bonding onder Buy-In", "Team Bonding below Buy-In", "Treino de união se a adesão cair"));
                     dirty |= ui.add(egui::Slider::new(&mut self.settings.planner.bonding_below, 0.0..=100.0).fixed_decimals(0)).changed();
                 });
                 ui.horizontal(|ui| {
-                    ui.label(t!("Standaardsituaties elke (weken, 0 = uit)", "Set pieces every (weeks, 0 = off)"));
+                    ui.label(t!("Standaardsituaties elke (weken, 0 = uit)", "Set pieces every (weeks, 0 = off)", "Bolas paradas a cada (semanas, 0 = desat.)"));
                     dirty |= ui.add(egui::DragValue::new(&mut self.settings.planner.set_pieces_every).range(0..=8)).changed();
                 });
                 ui.horizontal(|ui| {
-                    ui.label(t!("Doelen bijstellen elke (weken)", "Re-target every (weeks)"));
+                    ui.label(t!("Doelen bijstellen elke (weken)", "Re-target every (weeks)", "Reajustar objetivos a cada (semanas)"));
                     dirty |= ui.add(egui::DragValue::new(&mut self.settings.planner.replan_every_weeks).range(1..=8)).changed();
                 });
             });
@@ -1839,7 +1793,7 @@ impl App {
         ui.add_space(14.0);
         if agent::LIVE_SUPPORTED {
             theme::card(ui, |ui| {
-                ui.label(theme::h2(t!("Live in FM", "Live in FM")));
+                ui.label(theme::h2(t!("Live in FM", "Live in FM", "Ao vivo no FM")));
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     let mut on = self.settings.allow_untested;
@@ -1851,7 +1805,7 @@ impl App {
                             self.live.refresh(ui.ctx(), "", None);
                         }
                     }
-                    ui.label(RichText::new(t!("Aanpassen op een niet-geteste FM-versie", "Allow changes on an untested FM build")).strong());
+                    ui.label(RichText::new(t!("Aanpassen op een niet-geteste FM-versie", "Allow changes on an untested FM build", "Permitir alterações em versão do FM não testada")).strong());
                 });
                 ui.add(egui::Label::new(theme::dim(t!(
                     "FM27 Trainer past alleen iets aan op FM-versies die het kent (Steam op Windows en Mac, Game Pass / Xbox-app op Windows). Op andere versies (na een FM-update, of bijvoorbeeld Epic) staat de app op alleen lezen. Kloppen club, budget en selectie in de app met wat FM laat zien? Dan kun je aanpassen hier toestaan. Elke wijziging wordt eerst gecontroleerd, kan ongedaan worden gemaakt en blijft pas bewaard als je in FM opslaat. Maak eerst een backup van je save.",
@@ -1861,11 +1815,11 @@ impl App {
                 if self.live.connected {
                     ui.add_space(4.0);
                     let (c, txt) = if !self.live.untested_build {
-                        (theme::SUCCESS, t!("Deze FM-versie is getest.", "This FM build is tested."))
+                        (theme::SUCCESS, t!("Deze FM-versie is getest.", "This FM build is tested.", "Esta versão do FM foi testada com sucesso."))
                     } else if self.settings.allow_untested {
-                        (theme::WARNING, t!("Niet-geteste FM-versie: aanpassen toegestaan.", "Untested FM build: changes allowed."))
+                        (theme::WARNING, t!("Niet-geteste FM-versie: aanpassen toegestaan.", "Untested FM build: changes allowed.", "Versão não testada do FM: alterações permitidas."))
                     } else {
-                        (theme::WARNING, t!("Niet-geteste FM-versie: alleen lezen.", "Untested FM build: read-only."))
+                        (theme::WARNING, t!("Niet-geteste FM-versie: alleen lezen.", "Untested FM build: read-only.", "Versão não testada do FM: modo somente leitura."))
                     };
                     ui.horizontal(|ui| {
                         theme::status_dot(ui, c);
@@ -1876,30 +1830,30 @@ impl App {
             ui.add_space(14.0);
         }
         theme::card(ui, |ui| {
-            ui.label(theme::h2(t!("Mappen en toestemming", "Folders and permissions")));
+            ui.label(theme::h2(t!("Mappen en toestemming", "Folders and permissions", "Pastas e permissões")));
             ui.add_space(6.0);
             ui.label(theme::dim(format!("Export: {}", export::output_dir().display())));
-            ui.label(theme::dim(format!("{}: {}", t!("Instellingen", "Settings"), crate::data_dir().display())));
+            ui.label(theme::dim(format!("{}: {}", t!("Instellingen", "Settings", "Configurações"), crate::data_dir().display())));
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                if theme::button(ui, icon::EXPORT, t!("Open exportmap", "Open export folder"), true).clicked() {
+                if theme::button(ui, icon::EXPORT, t!("Open exportmap", "Open export folder", "Abrir pasta de exportação"), true).clicked() {
                     let _ = std::fs::create_dir_all(export::output_dir());
                     open_path(&export::output_dir());
                 }
                 // daar staat ook de laatste schermopname (last-breakdown.png): handig om mee te sturen
                 // als een meter verkeerd gelezen wordt
-                if theme::button(ui, icon::EXPORT, t!("Open app-map (laatste schermopname en uitlezing)", "Open app folder (last screenshot and reading)"), true).clicked() {
+                if theme::button(ui, icon::EXPORT, t!("Open app-map (laatste schermopname en uitlezing)", "Open app folder (last screenshot and reading)", "Abrir pasta do app (última captura e análise)"), true).clicked() {
                     let _ = std::fs::create_dir_all(crate::data_dir());
                     open_path(&crate::data_dir());
                 }
-                if cfg!(target_os = "macos") && theme::button(ui, icon::CAMERA, t!("Schermopname-toestemming", "Screen Recording permission"), true).clicked() {
+                if cfg!(target_os = "macos") && theme::button(ui, icon::CAMERA, t!("Schermopname-toestemming", "Screen Recording permission", "Permissão de gravação de tela"), true).clicked() {
                     open_path(std::path::Path::new("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"));
                 }
             });
         });
         ui.add_space(14.0);
         theme::card(ui, |ui| {
-            ui.label(theme::h2(t!("Over", "About")));
+            ui.label(theme::h2(t!("Over", "About", "Sobre")));
             ui.add(egui::Label::new(theme::dim(t!(
                 "Sessienamen, limieten en presets komen uit FM27's eigen game-data. De module leest en schrijft alleen na controle, met undo. Alleen voor single-player. Lettertype: Inter (SIL OFL). Iconen: Phosphor (MIT).",
                 "Session names, limits and presets come from FM27's own game data. The module only reads and writes after checks, with undo. Single-player only. Font: Inter (SIL OFL). Icons: Phosphor (MIT)."
@@ -2040,7 +1994,7 @@ fn week_card(ui: &mut Ui, w: &live_training::WeekPreview, today: Option<NaiveDat
         ui.horizontal(|ui| {
             ui.label(theme::h2(t!(format!("Week van {}", i18n::date_short(w.start)), format!("Week of {}", i18n::date_short(w.start)))));
             if w.rest {
-                theme::pill(ui, t!("Rustweek: blijft van FM", "Rest week: kept from FM"), theme::WARNING);
+                theme::pill(ui, t!("Rustweek: blijft van FM", "Rest week: kept from FM", "Semana de descanso: mantida do FM"), theme::WARNING);
                 return;
             }
             theme::pill(ui, &t!(format!("{} wedstrijd(en)", w.matches), format!("{} match(es)", w.matches)), theme::DANGER);
@@ -2051,7 +2005,7 @@ fn week_card(ui: &mut Ui, w: &live_training::WeekPreview, today: Option<NaiveDat
             } else if pending > 0 {
                 theme::pill(ui, &t!(format!("{pending} dagen wijken af van je plan"), format!("{pending} days differ from your plan")), theme::WARNING);
             } else {
-                theme::pill(ui, t!("volgens plan", "on plan"), theme::SUCCESS);
+                theme::pill(ui, t!("volgens plan", "on plan", "conforme o plano"), theme::SUCCESS);
             }
         });
         if w.rest {
@@ -2100,7 +2054,7 @@ fn plan_grid(ui: &mut Ui, p: &WeekPlan) {
 fn legend(ui: &mut Ui) {
     use crate::model::Category::*;
     ui.horizontal_wrapped(|ui| {
-        ui.label(theme::faint(t!("Omlijnd = door FM27 Trainer gezet · doorgestreept = wat FM wilde ·", "Outlined = set by FM27 Trainer · struck through = what FM wanted ·")));
+        ui.label(theme::faint(t!("Omlijnd = door FM27 Trainer gezet · doorgestreept = wat FM wilde ·", "Outlined = set by FM27 Trainer · struck through = what FM wanted ·", "Com borda = definido pelo FM27 Trainer · riscado = o que o FM queria ·")));
         for c in [TacticalUnderstanding, MatchPreparation, FootballingDevelopment, PhysicalRecovery, ExtraCurricular, Fixed] {
             theme::status_dot(ui, theme::rgb(c.color()));
             ui.label(theme::faint(c.label()));
@@ -2118,7 +2072,7 @@ fn kind_combo(ui: &mut Ui, id: &str, kind: &mut WeekKind) {
 }
 
 fn weekday_combo(ui: &mut Ui, id: &str, day: &mut Weekday) {
-    let names = [(Weekday::Fri, t!("vrijdag", "Friday")), (Weekday::Sat, t!("zaterdag", "Saturday")), (Weekday::Sun, t!("zondag", "Sunday"))];
+    let names = [(Weekday::Fri, t!("vrijdag", "Friday", "sexta-feira")), (Weekday::Sat, t!("zaterdag", "Saturday", "sábado")), (Weekday::Sun, t!("zondag", "Sunday", "domingo"))];
     let cur = names.iter().find(|(d, _)| d == day).map(|(_, n)| *n).unwrap_or("—");
     egui::ComboBox::from_id_salt(id).selected_text(cur).show_ui(ui, |ui| {
         for (d, n) in names {
