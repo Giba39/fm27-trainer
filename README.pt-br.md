@@ -36,7 +36,10 @@ O FM27 introduziu a **Eficácia Tática**: quatro áreas fundamentais (Entendime
 ## Recursos
 
 * **Leitura da Eficácia Tática (OCR integrado em PT-BR):** Abra a tela de *Detalhamento* no FM27 e clique em *Ler tela do FM*. O app captura a janela e faz a leitura de todos os 17 medidores circulares e 4 barras de resumo sem interferir no jogo.
+* **Página de Táticas & Melhor Onze (Novo na v0.2.7):** Lê suas táticas cadastradas no FM27, calcula a aptidão de cada jogador na sua função com e sem bola, sugere a melhor escalação titular possível para a tática e aponta funções mais adequadas aos atributos de cada atleta.
 * **Planejamento de Treino Automático:** O app agenda os treinos respeitando dias de descanso, recuperação pós-jogo e dias de viagem, inserindo as sessões táticas nas fraquezas do elenco.
+  * **Ajuste de Carga e Descanso:** Escolha entre *Mais descanso* (termina dias com descanso), *Equilibrado* ou *Menos descanso* (adiciona sessão tática pós-jogo).
+* **Múltiplos Treinadores & Categorias de Base:** Selecione qual treinador humano gerenciar em saves múltiplos, ou selecione times de base (Sub-21, Sub-18, Time B) para planejar seus treinos.
 * **Gestão de Elenco & Clube:**
   * Cura instantânea de lesões (individual ou de todo o elenco).
   * Anulação de suspensões por cartões.

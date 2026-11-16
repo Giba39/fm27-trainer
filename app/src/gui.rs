@@ -843,11 +843,11 @@ impl App {
         let team_name = |t: &Value| -> String {
             let n = |k: &str| t.get(k).and_then(|v| v.as_u64()).unwrap_or(0);
             let name = match (n("kind"), n("age_limit")) {
-                (0, _) => t!("Eerste elftal", "First team").to_string(),
-                (_, a) if (1..100).contains(&a) => t!(format!("Onder {a}"), format!("Under {a}")),
-                _ => t!(format!("Team {}", n("index") + 1), format!("Team {}", n("index") + 1)),
+                (0, _) => t!("Eerste elftal", "First team", "Time principal").to_string(),
+                (_, a) if (1..100).contains(&a) => t!(format!("Onder {a}"), format!("Under {a}"), format!("Sub-{a}")),
+                _ => t!(format!("Team {}", n("index") + 1), format!("Team {}", n("index") + 1), format!("Time {}", n("index") + 1)),
             };
-            format!("{name} · {} {}", n("players"), t!("spelers", "players"))
+            format!("{name} · {} {}", n("players"), t!("spelers", "players", "jogadores"))
         };
         let sel = |v: &Value| v.get("selected").and_then(|b| b.as_bool()) == Some(true);
         let mut pick: Option<(Option<u32>, Option<usize>)> = None;
@@ -855,7 +855,7 @@ impl App {
             ui.horizontal(|ui| {
                 ui.label(theme::ic(icon::USERS_THREE).color(theme::ACCENT));
                 if managers.len() > 1 {
-                    ui.label(t!("Manager van", "Manager of"));
+                    ui.label(t!("Manager van", "Manager of", "Treinador de"));
                     let cur = managers.iter().find(|m| sel(m)).and_then(|m| m["club"].as_str()).unwrap_or("?").to_string();
                     egui::ComboBox::from_id_salt("manager_pick").selected_text(cur).show_ui(ui, |ui| {
                         for m in &managers {
@@ -868,7 +868,7 @@ impl App {
                     ui.add_space(14.0);
                 }
                 if teams.len() > 1 {
-                    ui.label(t!("Training van", "Training of"));
+                    ui.label(t!("Training van", "Training of", "Treino de"));
                     let cur = teams.iter().find(|x| sel(x)).map(&team_name).unwrap_or_else(|| "?".into());
                     egui::ComboBox::from_id_salt("team_pick").selected_text(cur).width(210.0).show_ui(ui, |ui| {
                         for x in &teams {
@@ -886,7 +886,8 @@ impl App {
                 ui.add(
                     egui::Label::new(theme::dim(t!(
                         "Dit is niet je eigen team. De app kan zijn training alleen plannen als FM er een eigen kalender voor bijhoudt (jij regelt de training van dit team). Het plan gebruikt de waarden die je het laatst hebt uitgelezen.",
-                        "This is not your own team. The app can only plan its training if FM keeps a calendar of its own for it (you run this team's training). The plan uses the values you read last."
+                        "This is not your own team. The app can only plan its training if FM keeps a calendar of its own for it (you run this team's training). The plan uses the values you read last.",
+                        "Este não é o seu time principal. O app só pode planejar os treinos se o FM mantiver um calendário próprio para ele (você é o responsável pelos treinos desta equipe). O plano utilizará os valores lidos na última verificação."
                     )))
                     .wrap(),
                 );
@@ -895,7 +896,8 @@ impl App {
                 ui.add(
                     egui::Label::new(theme::dim(t!(
                         "Club, selectie, transfers en training horen bij de gekozen manager. Lees de Breakdown van dit team opnieuw uit voordat je de training laat plannen.",
-                        "Club, squad, transfers and training follow the chosen manager. Read this team's Breakdown again before you let the app plan its training."
+                        "Club, squad, transfers and training follow the chosen manager. Read this team's Breakdown again before you let the app plan its training.",
+                        "Clube, elenco, transferências e treinos seguem o treinador selecionado. Leia novamente a Eficácia Tática deste time antes de gerar o planejamento de treinos."
                     )))
                     .wrap(),
                 );
@@ -1441,10 +1443,10 @@ impl App {
         let mut reload = false;
         theme::page_header(
             ui,
-            t!("Tactiek", "Tactics"),
-            t!("Hoe goed je spelers bij de rollen van je tactiek passen", "How well your players fit the roles of your tactic"),
+            t!("Tactiek", "Tactics", "Táticas"),
+            t!("Hoe goed je spelers bij de rollen van je tactiek passen", "How well your players fit the roles of your tactic", "O quanto seus jogadores se adaptam às funções da sua tática"),
             |ui| {
-                if theme::primary_button(ui, icon::ARROWS_CLOCKWISE, if busy { t!("Bezig…", "Reading…") } else { t!("Opnieuw uitlezen", "Read again") }, connected && !busy).clicked() {
+                if theme::primary_button(ui, icon::ARROWS_CLOCKWISE, if busy { t!("Bezig…", "Reading…", "Lendo…") } else { t!("Opnieuw uitlezen", "Read again", "Ler novamente") }, connected && !busy).clicked() {
                     reload = true;
                 }
             },
@@ -1461,7 +1463,7 @@ impl App {
         let Some(data) = self.live.tactics.clone() else {
             if err.is_empty() {
                 theme::card(ui, |ui| {
-                    ui.label(theme::faint(t!("Tactiek uitlezen…", "Reading your tactic…")));
+                    ui.label(theme::faint(t!("Tactiek uitlezen…", "Reading your tactic…", "Lendo sua tática…")));
                 });
             }
             return;
@@ -1495,9 +1497,9 @@ impl App {
                 .tactics
                 .iter()
                 .map(|t| {
-                    let mut l = format!("{} {}", t!("Tactiek", "Tactic"), t.index + 1);
+                    let mut l = format!("{} {}", t!("Tactiek", "Tactic", "Tática"), t.index + 1);
                     if t.index == data.tactics[data.current.min(data.tactics.len() - 1)].index {
-                        l.push_str(t!(" · in gebruik", " · in use"));
+                        l.push_str(t!(" · in gebruik", " · in use", " · em uso"));
                     }
                     l
                 })
@@ -1509,7 +1511,7 @@ impl App {
                 theme::restart_enter(ctx);
             }
             if !tactic.style.is_empty() {
-                theme::pill(ui, &format!("{} {}", t!("sjabloon", "template"), tactic.style), theme::TEXT_DIM);
+                theme::pill(ui, &format!("{} {}", t!("sjabloon", "template", "modelo"), tactic.style), theme::TEXT_DIM);
             }
         });
         ui.add_space(12.0);
@@ -1517,7 +1519,8 @@ impl App {
             ui.add(
                 egui::Label::new(theme::faint(t!(
                     "Dit is niet de tactiek die nu in gebruik is: FM bewaart je basiself alleen voor die tactiek. Hieronder staat daarom alleen de beste elf voor deze tactiek.",
-                    "This is not the tactic in use: FM keeps your starting eleven for that tactic only. So below you only see the best eleven for this tactic."
+                    "This is not the tactic in use: FM keeps your starting eleven for that tactic only. So below you only see the best eleven for this tactic.",
+                    "Esta não é a tática atualmente em uso: o FM mantém os titulares apenas para a tática ativa. Portanto, abaixo você vê apenas o melhor onze para esta tática."
                 )))
                 .wrap(),
             );
@@ -1525,30 +1528,30 @@ impl App {
         }
 
         ui.columns(3, |c| {
-            theme::stat_tile(&mut c[0], icon::STRATEGY, t!("Elftal nu", "Current eleven"), &format!("{avg:.0}"), t!("gemiddelde geschiktheid", "average fit"), theme::rgb(level_color(avg)), Some(avg));
+            theme::stat_tile(&mut c[0], icon::STRATEGY, t!("Elftal nu", "Current eleven", "Onze atual"), &format!("{avg:.0}"), t!("gemiddelde geschiktheid", "average fit", "aptidão média"), theme::rgb(level_color(avg)), Some(avg));
             let gain = best_avg - avg;
             theme::stat_tile(
                 &mut c[1],
                 icon::USERS_THREE,
-                t!("Beste elf", "Best eleven"),
+                t!("Beste elf", "Best eleven", "Melhor onze"),
                 &format!("{best_avg:.0}"),
-                &if gain >= 0.5 { t!(format!("+{gain:.1} te winnen"), format!("+{gain:.1} to gain")) } else { t!("je elftal is al het beste".to_string(), "your eleven is already the best".to_string()) },
+                &if gain >= 0.5 { t!(format!("+{gain:.1} te winnen"), format!("+{gain:.1} to gain"), format!("+{gain:.1} a ganhar")) } else { t!("je elftal is al het beste".to_string(), "your eleven is already the best".to_string(), "seu time titular já é o melhor".to_string()) },
                 theme::rgb(level_color(best_avg)),
                 Some(best_avg),
             );
             let (wname, wval) = weakest
                 .map(|(i, f)| (format!("{} · {}", places[i].line.label(places[i].side), places[i].uid.and_then(|u| by_uid.get(&u)).map(|p| p.name.as_str()).unwrap_or("?")), f))
-                .unwrap_or((t!("geen elftal gekozen", "no eleven picked").to_string(), 0.0));
-            theme::stat_tile(&mut c[2], icon::WARNING, t!("Zwakste plek", "Weakest place"), &format!("{wval:.0}"), &wname, theme::rgb(level_color(wval)), Some(wval));
+                .unwrap_or((t!("geen elftal gekozen", "no eleven picked", "nenhum time escalado").to_string(), 0.0));
+            theme::stat_tile(&mut c[2], icon::WARNING, t!("Zwakste plek", "Weakest place", "Ponto mais fraco"), &format!("{wval:.0}"), &wname, theme::rgb(level_color(wval)), Some(wval));
         });
         ui.add_space(14.0);
 
         // de elf plekken
         theme::card(ui, |ui| {
-            ui.label(theme::h2(t!("Je elftal in deze tactiek", "Your eleven in this tactic")));
+            ui.label(theme::h2(t!("Je elftal in deze tactiek", "Your eleven in this tactic", "Seu time nesta tática")));
             ui.add_space(6.0);
             egui::Grid::new("tactic_slots").num_columns(6).spacing([18.0, 10.0]).striped(true).show(ui, |ui| {
-                for h in [t!("Plek", "Place"), t!("Rol met / zonder bal", "Role in / out of possession"), t!("Speler", "Player"), t!("Geschikt", "Fit"), t!("Positie", "Position"), t!("Beter in de selectie", "Better in the squad")] {
+                for h in [t!("Plek", "Place", "Posição"), t!("Rol met / zonder bal", "Role in / out of possession", "Função com / sem bola"), t!("Speler", "Player", "Jogador"), t!("Geschikt", "Fit", "Aptidão"), t!("Positie", "Position", "Posição"), t!("Beter in de selectie", "Better in the squad", "Melhor no elenco")] {
                     ui.label(theme::caps(h));
                 }
                 ui.end_row();
@@ -1569,10 +1572,10 @@ impl App {
                             ui.horizontal(|ui| {
                                 ui.label(theme::label_strong(&p.name));
                                 if p.injured {
-                                    theme::pill(ui, t!("geblesseerd", "injured"), theme::DANGER);
+                                    theme::pill(ui, t!("geblesseerd", "injured", "lesionado"), theme::DANGER);
                                 }
                                 if p.banned {
-                                    theme::pill(ui, t!("geschorst", "suspended"), theme::WARNING);
+                                    theme::pill(ui, t!("geschorst", "suspended", "suspenso"), theme::WARNING);
                                 }
                             });
                             ui.horizontal(|ui| {
@@ -1600,7 +1603,7 @@ impl App {
                             }
                         }
                         None => {
-                            ui.label(theme::faint(t!("leeg", "empty")));
+                            ui.label(theme::faint(t!("leeg", "empty", "vazio")));
                             ui.label(theme::faint("—"));
                             ui.label(theme::faint("—"));
                             ui.label(theme::faint("—"));
@@ -1613,11 +1616,12 @@ impl App {
 
         // de beste elf: alleen wat anders is dan nu
         theme::card(ui, |ui| {
-            ui.label(theme::h2(t!("Beste elf voor deze tactiek", "Best eleven for this tactic")));
+            ui.label(theme::h2(t!("Beste elf voor deze tactiek", "Best eleven for this tactic", "Melhor onze para esta tática")));
             ui.add(
                 egui::Label::new(theme::faint(t!(
                     "De verdeling van je fitte spelers over de elf plekken met de hoogste totale geschiktheid. Geblesseerde en geschorste spelers doen niet mee.",
-                    "The way to spread your available players over the eleven places with the highest total fit. Injured and suspended players are left out."
+                    "The way to spread your available players over the eleven places with the highest total fit. Injured and suspended players are left out.",
+                    "A melhor distribuição dos seus jogadores aptos sobre as onze posições com a maior aptidão total. Jogadores lesionados e suspensos ficam de fora."
                 )))
                 .wrap(),
             );
@@ -1637,19 +1641,19 @@ impl App {
                             ui.set_width(90.0);
                             ui.label(theme::label_strong(pl.line.label(pl.side)));
                         });
-                        ui.label(theme::dim(now.map(|p| p.name.as_str()).unwrap_or(t!("leeg", "empty"))));
+                        ui.label(theme::dim(now.map(|p| p.name.as_str()).unwrap_or(t!("leeg", "empty", "vazio"))));
                         ui.label(theme::ic(icon::ARROW_RIGHT).color(theme::TEXT_FAINT));
                         ui.label(theme::label_strong(&b.name));
                         let (bf, nf) = (tx::fit(b, pl), now.map(|p| tx::fit(p, pl)));
                         theme::pill(ui, &match nf { Some(nf) => format!("{nf:.0} → {bf:.0}"), None => format!("{bf:.0}") }, theme::rgb(level_color(bf)));
                         if in_eleven.contains(&b.uid) {
-                            ui.label(theme::faint(t!("(schuift door)", "(moves across)")));
+                            ui.label(theme::faint(t!("(schuift door)", "(moves across)", "(muda de posição)")));
                         }
                     });
                 }
             }
             if changes == 0 {
-                ui.label(theme::dim(t!("Je huidige elf is volgens deze berekening al de beste.", "By this calculation your current eleven is already the best.")));
+                ui.label(theme::dim(t!("Je huidige elf is volgens deze berekening al de beste.", "By this calculation your current eleven is already the best.", "Pelos nossos cálculos, o seu time titular atual já é o melhor.")));
             }
         });
 
@@ -1664,17 +1668,18 @@ impl App {
             })
             .collect();
         theme::card(ui, |ui| {
-            ui.label(theme::h2(t!("Rollen die beter passen", "Roles that fit better")));
+            ui.label(theme::h2(t!("Rollen die beter passen", "Roles that fit better", "Funções mais adequadas")));
             ui.add(
                 egui::Label::new(theme::faint(t!(
                     "Een andere rol met bal in dezelfde linie waar de attributen van de speler duidelijk beter bij passen.",
-                    "Another in-possession role in the same line that the player's attributes suit clearly better."
+                    "Another in-possession role in the same line that the player's attributes suit clearly better.",
+                    "Outra função com bola no mesmo setor onde os atributos do jogador se encaixam claramente melhor."
                 )))
                 .wrap(),
             );
             ui.add_space(6.0);
             if role_tips.is_empty() {
-                ui.label(theme::dim(t!("Geen: elke speler staat in een rol die bij hem past.", "None: every player is in a role that suits him.")));
+                ui.label(theme::dim(t!("Geen: elke speler staat in een rol die bij hem past.", "None: every player is in a role that suits him.", "Nenhuma: todos os jogadores estão em funções adequadas.")));
             }
             for (name, cur, code, full, now, then) in &role_tips {
                 ui.horizontal(|ui| {
@@ -1690,7 +1695,8 @@ impl App {
         ui.add(
             egui::Label::new(theme::faint(t!(
                 "De rollen, posities en attributen komen uit FM. Welke attributen bij een rol horen is onze eigen inschatting, en links of rechts is afgeleid uit de volgorde van de plekken: zie de score als hulpmiddel, niet als cijfer van FM. Er wordt niets in FM veranderd.",
-                "Roles, positions and attributes come from FM. Which attributes belong to a role is our own estimate, and left or right is derived from the order of the places: treat the score as a guide, not as a number from FM. Nothing is changed in FM."
+                "Roles, positions and attributes come from FM. Which attributes belong to a role is our own estimate, and left or right is derived from the order of the places: treat the score as a guide, not as a number from FM. Nothing is changed in FM.",
+                "Funções, posições e atributos vêm do FM. Os atributos ideais de cada função são estimativas do app, e lado esquerdo/direito é derivado da ordem das posições. Trate a pontuação como um guia de apoio, não como nota oficial do FM. Nada é alterado no save."
             )))
             .wrap(),
         );
@@ -2228,24 +2234,26 @@ impl App {
                 });
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
-                    ui.label(t!("Rust", "Rest"));
+                    ui.label(t!("Rust", "Rest", "Descanso"));
                     use planner::Load;
                     dirty |= theme::segmented(
                         ui,
                         &mut self.settings.planner.load,
-                        &[(Load::Light, t!("Meer rust", "More rest")), (Load::Balanced, t!("Gebalanceerd", "Balanced")), (Load::Intense, t!("Minder rust", "Less rest"))],
+                        &[(Load::Light, t!("Meer rust", "More rest", "Mais descanso")), (Load::Balanced, t!("Gebalanceerd", "Balanced", "Equilibrado")), (Load::Intense, t!("Minder rust", "Less rest", "Menos descanso"))],
                     );
                 });
                 ui.add(
                     egui::Label::new(theme::dim(match self.settings.planner.load {
                         planner::Load::Light => t!(
                             "Elke trainingsdag en de dag voor een wedstrijd eindigt met Rest.",
-                            "Every training day and the day before a match ends with Rest."
+                            "Every training day and the day before a match ends with Rest.",
+                            "Cada dia de treino e a véspera de partida terminam com Descanso."
                         ),
-                        planner::Load::Balanced => t!("Het gewone plan.", "The regular plan."),
+                        planner::Load::Balanced => t!("Het gewone plan.", "The regular plan.", "O planejamento padrão equilibrado."),
                         planner::Load::Intense => t!(
                             "De dag na een wedstrijd krijgt na Recovery ook een tactische sessie.",
-                            "The day after a match gets a tactical session after Recovery."
+                            "The day after a match gets a tactical session after Recovery.",
+                            "O dia pós-jogo recebe uma sessão tática adicional após a Recuperação."
                         ),
                     }))
                     .wrap(),

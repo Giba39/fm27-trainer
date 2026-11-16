@@ -167,14 +167,15 @@ mod mac_capture {
             .filter(|w| w.owner.contains("Football Manager") && w.layer == 0 && w.rect.size.width >= 400.0 && w.rect.size.height >= 300.0)
             .max_by(|a, b| (a.rect.size.width * a.rect.size.height).total_cmp(&(b.rect.size.width * b.rect.size.height)));
         let Some(w) = best else {
-            bail!("{}", crate::t!("Geen Football Manager-venster gevonden. Draait FM27?", "No Football Manager window found. Is FM27 running?"));
+            bail!("{}", crate::t!("Geen Football Manager-venster gevonden. Draait FM27?", "No Football Manager window found. Is FM27 running?", "Nenhuma janela do Football Manager encontrada. O FM27 está aberto?"));
         };
         if !unsafe { CGPreflightScreenCaptureAccess() } {
             // laat macOS de vraag tonen (de eerste keer) en zet de app in de lijst
             unsafe { CGRequestScreenCaptureAccess() };
             bail!("{}", crate::t!(
                 "Geen toestemming voor Schermopname. Zet FM27 Trainer aan bij Systeeminstellingen → Privacy en beveiliging → Schermopname en start de app opnieuw.",
-                "No Screen Recording permission. Switch on FM27 Trainer under System Settings → Privacy & Security → Screen Recording, then restart the app."
+                "No Screen Recording permission. Switch on FM27 Trainer under System Settings → Privacy & Security → Screen Recording, then restart the app.",
+                "Sem permissão de Gravação de Tela. Ative o FM27 Trainer em Ajustes do Sistema → Privacidade e Segurança → Gravação de Tela e reinicie o app."
             ));
         }
         #[allow(deprecated)]
@@ -183,7 +184,7 @@ mod mac_capture {
         let data = unsafe { CGDataProvider::data(CGImage::data_provider(img.as_deref()).as_deref()) }.map(|d| d.to_vec()).unwrap_or_default();
         let row = unsafe { CGImage::bytes_per_row(img.as_deref()) };
         if width < 200 || row < width * 4 || data.len() < row * height {
-            bail!("{}", crate::t!("Vastgelegd beeld is leeg; staat Schermopname-toestemming aan?", "Captured image is empty; is Screen Recording permission enabled?"));
+            bail!("{}", crate::t!("Vastgelegd beeld is leeg; staat Schermopname-toestemming aan?", "Captured image is empty; is Screen Recording permission enabled?", "A imagem capturada está vazia; a permissão de Gravação de Tela está ativada?"));
         }
         // rijen kunnen opvulling hebben; BGRA → RGBA
         let mut buf = Vec::with_capacity(width * height * 4);
@@ -197,7 +198,8 @@ mod mac_capture {
         if buf.chunks_exact(4).step_by(97).all(|p| p[0] < 8 && p[1] < 8 && p[2] < 8) {
             bail!("{}", crate::t!(
                 "Het FM-venster is niet in beeld. Zet FM zichtbaar (met de Breakdown open) en lees opnieuw uit.",
-                "The FM window is not visible. Bring FM into view (with the Breakdown open) and read again."
+                "The FM window is not visible. Bring FM into view (with the Breakdown open) and read again.",
+                "A janela do FM não está visível. Deixe o FM em foco (com a tela de Eficácia Tática aberta) e tente novamente."
             ));
         }
         RgbaImage::from_raw(width as u32, height as u32, buf).ok_or_else(|| anyhow!("opname omzetten mislukt"))
