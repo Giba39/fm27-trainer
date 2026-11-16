@@ -9,6 +9,7 @@ mod live;
 mod live_training;
 mod model;
 mod planner;
+mod tactics;
 mod theme;
 mod vision;
 
@@ -89,6 +90,18 @@ fn cli(args: &[String]) -> Result<bool> {
             if args.iter().any(|a| a == "--save") {
                 save_effectiveness(&a.to_effectiveness("Breakdown screenshot"))?;
                 println!("opgeslagen in {}", effectiveness_file().display());
+            }
+            Ok(true)
+        }
+        Some("windows") => {
+            // diagnose: welke vensters ziet de opname?
+            #[cfg(target_os = "macos")]
+            print!("{}", vision::mac_windows());
+            // met een pad erachter: de opname zelf bewaren (zonder OCR)
+            if let Some(p) = args.get(2) {
+                let img = vision::capture_fm_window()?;
+                img.save(p)?;
+                println!("opname {}x{} → {p}", img.width(), img.height());
             }
             Ok(true)
         }

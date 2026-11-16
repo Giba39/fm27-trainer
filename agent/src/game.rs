@@ -41,6 +41,8 @@ pub struct Layout {
     pub p_asking: u64,
     /// pointer naar het record met tactisch begrip (zie understanding.rs)
     pub p_understanding: u64,
+    /// 15 positiecijfers (u8 1–20); de attributen liggen er vast omheen (zie tactic.rs)
+    pub p_positions: u64,
     /// u32 met de editorvlaggen van de manager (registratie/rugnummers altijd), als bekend
     pub human_flags: Option<u64>,
     /// blokgroottes van de allocator van de game (FMLibreEditor [heap]): een lijst van n pointers
@@ -69,6 +71,7 @@ pub const MAC: Layout = Layout {
     p_asking: 0x230,
     // niet gemeten op de Mac: Windows 0x100 min het vbptr-woord; het record wordt streng gecontroleerd
     p_understanding: 0xF8,
+    p_positions: 0x148,
     human_flags: None,
     heap_blocks: &[144, 160, 192, 224, 256, 288, 320, 384, 448, 512, 640, 768, 896, 1024, 1280, 1536, 2048, 2560, 3072, 3584, 4096],
 };
@@ -97,6 +100,7 @@ pub const WIN: Layout = Layout {
     p_asking: 0x238,
     // gemeten (8 nov 2026) door FM's editor-actie "Maximise Tactical Understanding" te ontleden
     p_understanding: 0x100,
+    p_positions: 0x150,
     human_flags: Some(0x3FC),
     heap_blocks: &[144, 160, 192, 224, 256, 288, 320, 384, 448, 512],
 };
@@ -362,8 +366,13 @@ pub(crate) struct Change {
 #[derive(Default)]
 struct State {
     human: Option<u64>,
-    /// (adres van de team-pointer in het trainingsblok, afstand tot de weeklijst)
-    training_block: Option<(u64, u64)>,
+    /// per team: (adres van de team-pointer in het trainingsblok, afstand tot de weeklijst)
+    training_block: std::collections::HashMap<u64, (u64, u64)>,
+    /// keuze van de gebruiker bij meer dan één menselijke manager: UID van zijn club
+    chosen_club: Option<u32>,
+    /// keuze van de gebruiker voor de training: plek in de teamlijst van de club (None = het team
+    /// uit het contract van de manager)
+    chosen_team: Option<usize>,
     human_vtables: Vec<u64>,
     /// vtables van HUMAN_NON_PLAYER_MANAGER (None = nog niet gezocht; de zoektocht kost ~1,5 s)
     manager_vtables: Option<Vec<u64>>,
@@ -552,7 +561,7 @@ pub(crate) fn finance_looks_real(f: u64) -> bool {
 }
 
 /// Zoekt de manager via de vtables van db::HUMAN_NON_PLAYER (RTTI).
-fn human_via_rtti(img: &mem::Image) -> Option<Chain> {
+fn humans_via_rtti(img: &mem::Image) -> Vec<Chain> {
     let vts = with_state(|s| s.human_vtables.clone());
     let vts = if vts.is_empty() {
         let v = rtti::vtables_of(img, &rtti::decorated("db", "HUMAN_NON_PLAYER"));
@@ -562,24 +571,28 @@ fn human_via_rtti(img: &mem::Image) -> Option<Chain> {
         vts
     };
     if vts.is_empty() {
-        return None;
+        return Vec::new();
     }
-    rtti::instances(&vts, 64).into_iter().find_map(check_chain)
+    rtti::instances(&vts, 64).into_iter().filter_map(check_chain).collect()
 }
 
 /// Zoekt de manager in de staflijst van het spel (vaste plek per build, of zelf opgezocht).
-fn human_via_staff(img: &mem::Image) -> Option<Chain> {
-    let pair = statics(img)?.staff;
-    let (begin, end) = (mem::u64_at(pair)?, mem::u64_at(pair + 8)?);
-    if !mem::is_ptr(begin) || end < begin || (end - begin) % 8 != 0 || (end - begin) / 8 > 400_000 {
-        return None;
-    }
-    let bytes = mem::read_bytes(begin, (end - begin) as usize)?;
+fn humans_via_staff(img: &mem::Image) -> Vec<Chain> {
+    let read = || {
+        let pair = statics(img)?.staff;
+        let (begin, end) = (mem::u64_at(pair)?, mem::u64_at(pair + 8)?);
+        if !mem::is_ptr(begin) || end < begin || (end - begin) % 8 != 0 || (end - begin) / 8 > 400_000 {
+            return None;
+        }
+        mem::read_bytes(begin, (end - begin) as usize)
+    };
+    let Some(bytes) = read() else { return Vec::new() };
     bytes
         .chunks_exact(8)
         .map(|c| u64::from_le_bytes(c.try_into().unwrap()))
         .filter(|p| mem::is_ptr(*p)) // lege plekken overslaan
-        .find_map(check_chain)
+        .filter_map(check_chain)
+        .collect()
 }
 
 /// Laatste redmiddel op Windows, als de staflijst en de RTTI van `db::HUMAN_NON_PLAYER` niets
@@ -588,7 +601,7 @@ fn human_via_staff(img: &mem::Image) -> Option<Chain> {
 /// op Game Pass 0.9.2435.0 gemeten op +0x18, met één element. Elk (begin, end)-paar in het begin
 /// van het object dat op een korte pointerlijst lijkt, wordt geprobeerd; `check_chain` beslist.
 /// Gevonden en aangeleverd door arhxmmmmm (fork forked-fm27-trainer, MIT).
-fn human_via_manager_list(img: &mem::Image) -> Option<Chain> {
+fn humans_via_manager_list(img: &mem::Image) -> Vec<Chain> {
     let vts = match with_state(|s| s.manager_vtables.clone()) {
         Some(v) => v,
         None => {
@@ -608,35 +621,129 @@ fn human_via_manager_list(img: &mem::Image) -> Option<Chain> {
                 continue;
             }
             let Some(list) = mem::read_bytes(begin, (end - begin) as usize) else { continue };
-            let found = list.chunks_exact(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).filter(|p| mem::is_ptr(*p)).find_map(check_chain);
-            if found.is_some() {
+            let found: Vec<Chain> = list.chunks_exact(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).filter(|p| mem::is_ptr(*p)).filter_map(check_chain).collect();
+            if !found.is_empty() {
                 return found;
             }
         }
     }
-    None
+    Vec::new()
 }
 
-/// Vindt (en onthoudt) de menselijke manager.
+/// Alle menselijke managers met een club (een save kan er meer dan één hebben), elk één keer.
+fn humans() -> Result<Vec<Chain>, String> {
+    let img = mem::game_plugin().ok_or("game_plugin niet geladen (laadt FM nog?) / game_plugin not loaded yet")?;
+    let or = |a: Vec<Chain>, f: &dyn Fn() -> Vec<Chain>| if a.is_empty() { f() } else { a };
+    // op Windows eerst de staflijst (geen RTTI nodig), op de Mac eerst de geteste RTTI-weg
+    let mut found = match mem::abi() {
+        Abi::Msvc => or(or(humans_via_staff(&img), &|| humans_via_rtti(&img)), &|| humans_via_manager_list(&img)),
+        Abi::Itanium => or(humans_via_rtti(&img), &|| humans_via_staff(&img)),
+    };
+    let mut seen = std::collections::HashSet::new();
+    found.retain(|c| seen.insert(c.human));
+    if found.is_empty() {
+        return Err("geen menselijke manager met club gevonden. Is er een save geladen? / No human manager with a club found. Is a save loaded?".into());
+    }
+    Ok(found)
+}
+
+/// Vindt (en onthoudt) de menselijke manager: die van de gekozen club als de gebruiker er een
+/// gekozen heeft en die er nog is, anders de eerste.
 pub fn chain() -> Result<Chain, String> {
     if let Some(h) = with_state(|s| s.human) {
         if let Some(c) = check_chain(h) {
             return Ok(c);
         }
     }
-    let img = mem::game_plugin().ok_or("game_plugin niet geladen (laadt FM nog?) / game_plugin not loaded yet")?;
-    // op Windows eerst de staflijst (geen RTTI nodig), op de Mac eerst de geteste RTTI-weg
-    let found = match mem::abi() {
-        Abi::Msvc => human_via_staff(&img).or_else(|| human_via_rtti(&img)).or_else(|| human_via_manager_list(&img)),
-        Abi::Itanium => human_via_rtti(&img).or_else(|| human_via_staff(&img)),
+    let all = humans()?;
+    let want = with_state(|s| s.chosen_club);
+    let c = want.and_then(|u| all.iter().find(|c| mem::u32_at(c.club + CLUB_UID) == Some(u))).unwrap_or(&all[0]);
+    with_state(|s| s.human = Some(c.human));
+    Ok(*c)
+}
+
+const CLUB_TEAMS: u64 = 0x18;
+/// u8 soort team (FMLibreEditor: 0 eerste elftal, 10 onder 21, 12 onder 18) en u8 leeftijdsgrens
+/// (100 = geen).
+const TEAM_KIND: u64 = 0x28;
+const TEAM_AGE_LIMIT: u64 = 0x2C;
+
+fn club_teams(club: u64) -> Vec<u64> {
+    pointer_list(club + CLUB_TEAMS, 64).map(|(_, v)| v).unwrap_or_default()
+}
+
+/// Het team waarvan de app de training leest en schrijft: het gekozen team van de club, anders
+/// het team uit het contract van de manager.
+fn training_team(c: &Chain) -> u64 {
+    with_state(|s| s.chosen_team).and_then(|i| club_teams(c.club).get(i).copied()).filter(|t| mem::u64_at(t + TEAM_CLUB) == Some(c.club)).unwrap_or(c.team)
+}
+
+#[derive(Serialize)]
+pub struct ManagerInfo {
+    pub club_uid: u32,
+    pub club: String,
+    pub selected: bool,
+}
+
+#[derive(Serialize)]
+pub struct TeamInfo {
+    pub index: usize,
+    pub kind: u8,
+    pub age_limit: u8,
+    pub players: usize,
+    /// het team uit het contract van de manager
+    pub own: bool,
+    pub selected: bool,
+}
+
+#[derive(Serialize)]
+pub struct Teams {
+    pub managers: Vec<ManagerInfo>,
+    pub teams: Vec<TeamInfo>,
+}
+
+/// De menselijke managers in de save en de teams van de club van de gekozen manager.
+pub fn teams() -> Result<Teams, String> {
+    let c = chain()?;
+    let managers = humans()?
+        .iter()
+        .map(|h| ManagerInfo { club_uid: mem::u32_at(h.club + CLUB_UID).unwrap_or(0), club: club_name(h.club).unwrap_or_default(), selected: h.human == c.human })
+        .collect();
+    let chosen = training_team(&c);
+    let teams = club_teams(c.club)
+        .into_iter()
+        .enumerate()
+        .filter(|(_, t)| mem::u64_at(t + TEAM_CLUB) == Some(c.club))
+        .map(|(index, t)| TeamInfo {
+            index,
+            kind: mem::u8_at(t + TEAM_KIND).unwrap_or(0),
+            age_limit: mem::u8_at(t + TEAM_AGE_LIMIT).unwrap_or(100),
+            players: pointer_list(t + TEAM_PLAYERS, 400).map(|(_, v)| v.len()).unwrap_or(0),
+            own: t == c.team,
+            selected: t == chosen,
+        })
+        .collect();
+    Ok(Teams { managers, teams })
+}
+
+/// Kiest de manager (op de UID van zijn club) en het team voor de training. Zonder `club` blijft
+/// de manager; `team` None = het eigen team van de manager.
+pub fn select_team(club: Option<u32>, team: Option<usize>) -> Result<Teams, String> {
+    // een club zonder menselijke manager (een oude keuze uit een andere save) verandert niets
+    let club = match club {
+        Some(u) if humans()?.iter().any(|c| mem::u32_at(c.club + CLUB_UID) == Some(u)) => Some(u),
+        _ => None,
     };
-    match found {
-        Some(c) => {
-            with_state(|s| s.human = Some(c.human));
-            Ok(c)
+    with_state(|s| {
+        if let Some(u) = club {
+            if s.chosen_club != Some(u) {
+                s.chosen_club = Some(u);
+                s.human = None;
+            }
         }
-        None => Err("geen menselijke manager met club gevonden. Is er een save geladen? / No human manager with a club found. Is a save loaded?".into()),
-    }
+        s.chosen_team = team;
+    });
+    teams()
 }
 
 #[derive(Serialize)]
@@ -1177,7 +1284,7 @@ fn weeks_rejection(hdr: u64) -> Option<String> {
 /// club (veel wedstrijden, historie, nieuws) wijzen tienduizenden plekken naar het team, en het
 /// trainingsblok kan daar ver achter liggen.
 fn training_weeks_header(team: u64) -> Result<u64, String> {
-    if let Some((b, d)) = with_state(|s| s.training_block) {
+    if let Some((b, d)) = with_state(|s| s.training_block.get(&team).copied()) {
         if mem::u64_at(b) == Some(team) && weeks_at(b + d, d).is_some() {
             return Ok(b + d);
         }
@@ -1213,12 +1320,16 @@ fn training_weeks_header(team: u64) -> Result<u64, String> {
         false
     });
     if let Some((a, d)) = found.or(fallback) {
-        with_state(|s| s.training_block = Some((a, d)));
+        with_state(|s| {
+            s.training_block.insert(team, (a, d));
+        });
         return Ok(a + d);
     }
     let detail = if rejected.is_empty() { String::new() } else { format!("; afgekeurd / rejected: {}", rejected.join(" | ")) };
+    let other = chain().is_ok_and(|c| c.team != team);
+    let hint = if other { " FM houdt voor dit team geen eigen kalender bij, of jij regelt de training van dit team niet. / FM keeps no calendar of its own for this team, or you do not run this team's training." } else { "" };
     Err(format!(
-        "trainingskalender van het team niet gevonden / training calendar not found (team ×{hits}{detail})"
+        "trainingskalender van het team niet gevonden / training calendar not found (team ×{hits}{detail}).{hint}"
     ))
 }
 
@@ -1244,7 +1355,7 @@ fn read_week(rec: u64) -> Option<Week> {
 
 pub fn training_weeks() -> Result<(FmDate, Vec<Week>), String> {
     let c = chain()?;
-    let hdr = training_weeks_header(c.team)?;
+    let hdr = training_weeks_header(training_team(&c))?;
     let list = weeks_header_ok(hdr).ok_or("weeklijst niet leesbaar")?;
     let today = game_date()?;
     Ok((today, list.into_iter().filter_map(read_week).collect()))
@@ -1257,7 +1368,7 @@ pub fn set_week(start: FmDate, days: &[[u16; 3]]) -> Result<usize, String> {
         return Err("een week heeft 7 dagen".into());
     }
     let c = chain()?;
-    let hdr = training_weeks_header(c.team)?;
+    let hdr = training_weeks_header(training_team(&c))?;
     let list = weeks_header_ok(hdr).ok_or("weeklijst niet leesbaar")?;
     let today = game_date()?;
     let rec = list

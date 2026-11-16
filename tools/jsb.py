@@ -22,7 +22,8 @@ def val(r):
         ln = r.u32() if n==0 else n-1
         return r.raw(ln).decode("utf-8","replace")
     if ty==0x1: return bool(n)
-    if ty==0x2: return r.i32() if n==0 else ("i%d"%(n-1))
+    if ty==0x2: return r.i32() if n==0 else n-8  # korte vorm: 0x82 = 0 … 0xF2 = 7
+    if ty==0x7: return struct.unpack("<d", r.raw(8))[0] if n==0 else (n-1)/2  # korte vorm: 0x27 = 0,5, 0x37 = 1,0
     unknown.add(hex(t)); return "?%02x@%d"%(t,r.p-1)
 d=open(sys.argv[1],"rb").read()
 r=R(d); v=val(r)

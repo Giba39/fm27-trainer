@@ -51,8 +51,8 @@ tools/research/      fmq.py (onderzoeksclient), offers.py, breakdown_labels.py (
 
 Alle opdrachten van de module: `ping`, `club`, `squad`, `set_finances`, `heal`, `lift_bans`, `inspire`, `undo`,
 `game_date`, `training_weeks`, `set_week`, `clubs`, `club_squad`, `sell`, `buy`, `understanding`, `max_understanding` (met `dry_run`),
-`human_flags`, `set_human_flags`,
-`allow_untested`, en voor onderzoek `chain`, `census`, `class_of`, `read`, `find_u16`, `find_ptr`, `write` (alleen
+`human_flags`, `set_human_flags`, `tactics`, `teams`, `select`,
+`allow_untested`, en voor onderzoek `chain`, `census`, `class_of`, `read`, `find_u16`, `find_bytes`, `find_ptr`, `write` (alleen
 met `expect`), `discover`. Zie `agent/src/lib.rs`.
 
 ## Bouwen en testen op Windows
@@ -128,7 +128,80 @@ met `expect`), `discover`. Zie `agent/src/lib.rs`.
   openen van een pagina (`enter`/`restart_enter`) en glijden mee bij een nieuwe waarde, zijbalk en primaire knop
   met zachte overgang, pagina vervaagt in. Alleen bekeken zonder verbinding (Overzicht, Training, Planning,
   Instellingen); Club, Selectie en Transfers met een verbonden FM zijn niet opnieuw bekeken.
-- `cargo test -p fm27-trainer`: nu 4 tests.
+- `cargo test -p fm27-trainer`: nu 4 tests (9 met de tactiekhulp van 14 nov, 10 met de rusttest van 16 nov).
+
+## Mac-opname (13 nov 2026, na 0.2.6, nog niet uitgebracht)
+
+- Melding van Sem: "No Football Manager window found" terwijl FM draaide. Oorzaak: xcap vraagt alleen vensters op
+  die nu in beeld zijn (en slaat vensters zonder titel over, dus alles zonder Schermopname-toestemming). FM stond
+  schermvullend op een andere Space dan de app (zelfde beeldscherm). De Mac gebruikt nu een eigen opname
+  (`mac_capture` in `app/src/vision.rs`): alle vensters (`OptionAll`), grootste venster van FM op laag 0, opname op
+  venster-id; aparte melding zonder toestemming en bij een zwart beeld. Gemeten: FM-venster `onscreen false`, opname
+  2560×1440 klopt. Windows gebruikt nog xcap. Diagnose: `fm27-trainer windows [opname.png]`.
+- `fm27-trainer analyze` (CLI) blijft op macOS 27.2 hangen in de Vision-OCR (wacht op een semafoor; de CLI heeft geen
+  draaiende hoofdlus). In de app, waar de uitlezing op een achtergrondthread loopt, speelt dat niet. Niet opgelost.
+
+## Tactiekhulp en Tactical Effectiveness uit het geheugen (14 nov 2026, versie 0.2.7)
+
+- **Tactiekhulp** (pagina Tactiek, `app/src/tactics.rs`, opdracht `tactics` in `agent/src/tactic.rs`, alleen lezen):
+  per tactiek de elf plekken met rol met/zonder bal, van elke speler 15 positiecijfers en 47 attributen; de app
+  rekent geschiktheid per plek, de beste elf (Hongaarse methode, een wissel moet ≥ 1,5 opleveren) en rollen die
+  beter passen. Feiten uit FMLibreEditor (`layout*.toml`, `docs/recon/fm27-tactics-and-value.md`), op de Mac
+  nagekeken tegen FM's tactiekscherm (Steam 26577676, Ajax, tactiek 3 "Guardiolaball"): selectie-object `+0x08`
+  lijst van 3 blokken, **`+0x20` i8 tactiek in gebruik** (las 2 = tactiek 3), `+0x28` persoons-id's; blok `+0x100`
+  stijl, rolmaskers Mac `+0x160`/`+0x480` (Windows `+0x158`/`+0x478`), stap 0x48; na een byte 0x1B rond `+0x7A8`
+  de tabel plek-met-bal → plek-zonder-bal. De plekken met bal staan in de volgorde van de basiself, die zonder bal
+  in veldvolgorde per linie van rechts naar links: daaruit leidt de app links/rechts af (alleen op deze ene
+  tactiek gezien). De basiself hoort alleen bij de tactiek in gebruik. Nieuwe rolbits: 15 = DLP, 40 = F9,
+  57 = MPM. Nog zonder naam gezien: met bal 0 (op de keepersplek), 31, 41, 49; zonder bal 30, 35 (de app toont
+  `#n` en neemt de linie uit FM's nummering). **Welke attributen bij een rol horen is eigen inschatting**, niet
+  uit FM. Tijdens een wedstrijd zijn er ~60 selectie-objecten (10 van de club, alle gelijk).
+  Getest: simulatie (beide indelingen, in `run_market`), 5 tests in de app, en de pagina met gegevens die een
+  script met dezelfde stappen uit het draaiende FM las (`FM27_TACTICS_JSON=<bestand> FM27_PAGE=tactics`). De
+  module-opdracht is daarna **live gedraaid op de Mac** (FM herstart met de nieuwe module): tactiek 3, alle elf
+  spelers en rollen en de bank (11) gelijk aan FM's tactiekscherm. Windows is alleen simulatie. Sem gebruikt
+  alleen tactiek 3; de rolnamen van tactiek 1 en 2 zijn niet aangevuld.
+- **Tactical Effectiveness uit het geheugen: niet gelukt, niet af.** FM rekent de cijfers uit; ze staan niet
+  kant-en-klaar in het object van de trainingsmanager per manager (TRAINING_MANAGER `+0x38` lijst van managers,
+  `+0x98` club; eerste 0x400 bytes bekeken). De formule-constanten staan in `simatch.fmf` →
+  `constants/generated_tactical_effectiveness_constants.jsb` (gewichten: totaal = 0,5 TU + 0,15 PA + 0,2 PBI +
+  0,15 NMI; drempels 7/16/34/41/51/67/81/91; MIN 7, MAX 100), verder `…training_contribution…` en
+  `…tactical_complexity…` (daar staan ook alle 41 rolnamen met en zonder bal). `tools/jsb.py` leest nu ook
+  kommagetallen (type 7) en de korte vormen (kleine gehele getallen: nibble − 8; 0x27 = 0,5, 0x37 = 1,0).
+  Volgende stap: met de Breakdown open (en zonder dat Sem speelt) de getoonde waarden in het geheugen zoeken
+  (`find_bytes`), anders de berekening per key factor nabouwen.
+- **Niet in FM klikken met `orca computer`**: klikken kwamen op andere knoppen terecht (o.a. "Messages") en één
+  kwam in een lopende wedstrijd van Sem terecht. Een opname van het FM-venster maken kan wel zonder iets aan te
+  raken (`fm27-trainer windows <png>`).
+
+## Meer managers, andere teams en rustniveau (16 nov 2026, in 0.2.7, nog niet uitgebracht)
+
+- Aanleiding: sortitoutsi-reacties ("tweede team leest de meters goed uit maar zet de training niet", "doet hij
+  ook de jeugdteams?", "verschillende rustniveaus"). De app nam altijd de **eerste** menselijke manager met een
+  club; bij twee managers in één save ging alles naar de eerste. Dat dit de oorzaak van de melding is, is een
+  aanname: niet bevestigd door de melder.
+- Module: `humans()` geeft alle menselijke managers; `chain()` neemt die van de gekozen club (`State.chosen_club`),
+  anders de eerste. `training_team()` = gekozen team uit de teamlijst van de club (`club+0x18`,
+  `State.chosen_team`), anders het team uit het contract; alleen `training_weeks`/`set_week` gebruiken dat, de
+  selectie en de rest blijven het eigen team. Het trainingsblok wordt nu per team onthouden. Opdrachten `teams`
+  en `select {club?, team?}` (een club zonder menselijke manager verandert niets). Team `+0x28` u8 soort
+  (0 eerste elftal, 10 O21, 12 O18), `+0x2C` u8 leeftijdsgrens (100 = geen): feiten uit FMLibreEditor, door ons
+  niet gemeten.
+- App: keuze op de Training-pagina (alleen zichtbaar bij > 1 manager of > 1 team), bewaard in de instellingen
+  (`manager_club`, `training_team`) en bij elke verversing en vóór elke trainingsopdracht opnieuw doorgegeven.
+  Testhulp `FM27_TEAMS_JSON=<bestand>`. Instellingen → Planner → Rust (`planner::Load`: Light / Balanced /
+  Intense).
+- **Alleen simulatie** (`run_market`: tweede manager bij Milan, eigen kalender voor het jeugdteam, schrijven +
+  undo) en een plannertest. **Niet live getest**: of FM voor een jeugd- of B-team een eigen weeklijst bijhoudt,
+  is niet gemeten. Er is één set uitgelezen waarden; die wordt niet per team bewaard.
+
+## Intel-Mac start niet (GitHub #5, 16 nov 2026, opgelost in 0.2.7, nog niet uitgebracht)
+
+- 0.2.6 crashte bij het starten op een Intel-Mac (macOS 15): `Library not loaded: @rpath/libswiftCoreMedia.dylib`,
+  `no LC_RPATH's found`. Nagekeken op de uitgebrachte DMG: alleen de x86_64-helft had die koppeling (via xcap →
+  AVFoundation/CoreMedia), de arm64-helft niet. xcap is nu alleen nog een afhankelijkheid buiten macOS
+  (`app/Cargo.toml`); de Mac heeft zijn eigen opname. De Intel-build heeft geen Swift-koppeling meer en start
+  onder Rosetta (`arch -x86_64 … help`). Niet op een echte Intel-Mac getest.
 
 ## Veiligheidsregels (altijd)
 

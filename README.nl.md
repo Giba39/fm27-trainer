@@ -50,6 +50,10 @@ in FM's trainingskalender, week na week.
   zet het met één klik op het maximum, zoals de in-game editor van FM: het begrip van elke speler voor elke
   instelling naar 100 %. FM laat het elke speelweek weer zakken; met een schakelaar houdt de app het op 100 %
   zolang hij open staat. Spelers die nog nooit met het team trainden, doen pas mee als ze dat hebben gedaan.
+- **Tactiek.** De pagina Tactiek leest je tactiek uit FM (rollen met en zonder bal, posities, attributen) en toont
+  per plek hoe goed de speler past, wie in de selectie beter past, de beste elf en rollen die beter bij een speler
+  passen. De scores zijn een eigen inschatting van de app; er verandert niets in FM. Live nagekeken op de Mac, op
+  Windows tot nu toe alleen in simulatie.
 - **Planning en export.** Week- en seizoensplan als HTML (printbaar), CSV en JSON, ook zonder module.
 - **Nederlands en Engels.** Volgt de taal van je systeem; wisselen kan altijd in de zijbalk.
 

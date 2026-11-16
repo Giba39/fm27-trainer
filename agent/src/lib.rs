@@ -10,6 +10,7 @@ pub mod game;
 mod mem;
 mod rtti;
 mod sell;
+pub mod tactic;
 #[cfg(test)]
 mod tests;
 pub mod understanding;
@@ -178,6 +179,12 @@ pub fn dispatch(req: &Value) -> Result<Value, String> {
             game::set_finances(g("transfer_budget"), g("wage_budget"), g("balance")).map(|c| json!(c))
         }
         "squad" => game::squad().map(|s| json!(s)),
+        "teams" => game::teams().map(|t| json!(t)),
+        "select" => {
+            let club = req.get("club").and_then(|v| v.as_u64()).map(|n| n as u32);
+            let team = req.get("team").and_then(|v| v.as_u64()).map(|n| n as usize);
+            game::select_team(club, team).map(|t| json!(t))
+        }
         "heal" => game::heal(&uids(req)).map(|n| json!({"players": n})),
         "lift_bans" => game::lift_bans(&uids(req)).map(|n| json!({"bans": n})),
         "inspire" => {
@@ -199,6 +206,7 @@ pub fn dispatch(req: &Value) -> Result<Value, String> {
             game::set_human_flags(b("registration_anytime"), b("numbers_anytime")).map(|f| json!(f))
         }
         "understanding" => understanding::understanding().map(|u| json!(u)),
+        "tactics" => tactic::tactics().map(|t| json!(t)),
         "max_understanding" => {
             let dry = req.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false);
             understanding::maximise(&uids(req), dry).map(|m| json!(m))
@@ -268,6 +276,14 @@ pub fn dispatch(req: &Value) -> Result<Value, String> {
             let bytes: Vec<u8> = pat.iter().flat_map(|x| x.to_le_bytes()).collect();
             let limit = req.get("limit").and_then(|v| v.as_u64()).unwrap_or(200) as usize;
             let hits = mem::scan_bytes(&bytes, 2, limit);
+            Ok(json!(hits.iter().map(|a| format!("{a:#x}")).collect::<Vec<_>>()))
+        }
+        "find_bytes" => {
+            // willekeurig bytepatroon in de heap (onderzoek): hex, uitlijning 1/2/4/8
+            let pat = unhex(req.get("hex").and_then(|v| v.as_str()).ok_or("hex ontbreekt")?)?;
+            let align = req.get("align").and_then(|v| v.as_u64()).unwrap_or(1).clamp(1, 8) as usize;
+            let limit = req.get("limit").and_then(|v| v.as_u64()).unwrap_or(200).clamp(1, 100_000) as usize;
+            let hits = mem::scan_bytes(&pat, align, limit);
             Ok(json!(hits.iter().map(|a| format!("{a:#x}")).collect::<Vec<_>>()))
         }
         "find_ptr" => {

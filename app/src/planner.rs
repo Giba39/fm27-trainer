@@ -119,6 +119,17 @@ pub struct WeekPlan {
     pub schedule_name: String,
 }
 
+/// Hoeveel rust het plan geeft. `Balanced` is het plan zoals het altijd was.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Load {
+    /// Meer rust: elke trainingsdag en de dag voor een wedstrijd eindigt met Rest.
+    Light,
+    #[default]
+    Balanced,
+    /// Minder rust: de dag na een wedstrijd krijgt na Recovery ook een tactische sessie.
+    Intense,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlannerSettings {
     /// Onder deze Buy-In-score komt er Team Bonding na wedstrijden.
@@ -132,6 +143,9 @@ pub struct PlannerSettings {
     /// Plan per blok van zoveel weken met dezelfde doelen, zodat weekschema's terugkomen.
     #[serde(default = "default_block")]
     pub replan_every_weeks: u32,
+    /// Hoeveel rust het plan geeft.
+    #[serde(default)]
+    pub load: Load,
 }
 
 fn default_block() -> u32 {
@@ -140,7 +154,7 @@ fn default_block() -> u32 {
 
 impl Default for PlannerSettings {
     fn default() -> Self {
-        PlannerSettings { bonding_below: 60.0, set_pieces_every: 0, gain_per_session: 2.2, decay_per_week: 0.8, replan_every_weeks: 4 }
+        PlannerSettings { bonding_below: 60.0, set_pieces_every: 0, gain_per_session: 2.2, decay_per_week: 0.8, replan_every_weeks: 4, load: Load::Balanced }
     }
 }
 
@@ -393,7 +407,7 @@ pub fn plan_week(
     let mut days = Vec::new();
     for (i, role) in roles.iter().enumerate() {
         let date = week.start + Duration::days(i as i64);
-        let plan: [Slot; 3] = match role {
+        let mut plan: [Slot; 3] = match role {
             DayRole::Match => [Slot::Fixed("Rest"), Slot::Fixed("Match"), Slot::Fixed("Rest")],
             DayRole::PostMatch => [Slot::Fixed("Recovery"), Slot::Fixed("Rest"), Slot::Extra],
             DayRole::PostAndPreMatch => [Slot::Fixed("Recovery"), Slot::MatchPrep, Slot::Fixed("Rest")],
@@ -411,6 +425,11 @@ pub fn plan_week(
                 _ => [Slot::Tactical, Slot::Tactical, Slot::Extra],
             },
         };
+        match settings.load {
+            Load::Light if matches!(role, DayRole::Training | DayRole::PreMatch) => plan[2] = Slot::Fixed("Rest"),
+            Load::Intense if *role == DayRole::PostMatch => plan[1] = Slot::Tactical,
+            _ => {}
+        }
         let mut today: Vec<String> = Vec::new();
         for slot in plan {
             let name = match slot {
@@ -556,4 +575,33 @@ pub fn unique_schedules(plans: &[WeekPlan]) -> Vec<(String, Vec<NaiveDate>, &Wee
         }
     }
     seen.into_iter().map(|(_, name, dates, i)| (name, dates, &plans[i])).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Meer rust: trainingsdagen en de dag voor de wedstrijd eindigen met Rest; minder rust: na
+    /// Recovery op de dag na de wedstrijd een tactische sessie. Wedstrijddagen blijven gelijk.
+    #[test]
+    fn load_changes_rest() {
+        let mut matches = [false; 7];
+        matches[5] = true; // zaterdag
+        let week = CalendarWeek { start: NaiveDate::from_ymd_opt(2027, 3, 15).unwrap(), kind: WeekKind::Season, matches, note: String::new() };
+        let eff = Effectiveness::default();
+        let plan = |load: Load| plan_week(&week, false, false, &eff, &PlannerSettings { load, ..Default::default() }, 1);
+        let rest = |p: &WeekPlan| p.days.iter().flat_map(|d| d.slots.iter()).filter(|s| *s == "Rest").count();
+        let (light, normal, hard) = (plan(Load::Light), plan(Load::Balanced), plan(Load::Intense));
+        assert!(rest(&light) > rest(&normal), "{} > {}", rest(&light), rest(&normal));
+        for d in [0, 1, 2, 3, 4] {
+            assert_eq!(light.days[d].slots[2], "Rest", "dag {d}");
+        }
+        assert_eq!(light.days[5].slots, normal.days[5].slots, "wedstrijddag");
+        assert_eq!(hard.days[6].slots[0], "Recovery");
+        assert_ne!(hard.days[6].slots[1], "Rest");
+        assert_eq!(normal.days[6].slots[1], "Rest");
+        for d in 0..6 {
+            assert_eq!(hard.days[d].slots, normal.days[d].slots, "alleen de dag na de wedstrijd verandert");
+        }
+    }
 }

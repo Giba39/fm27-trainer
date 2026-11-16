@@ -68,12 +68,18 @@ struct Settings {
     auto_read: bool,
     #[serde(default = "ten")]
     auto_read_secs: u32,
+    /// Bij meer dan één manager in de save: de UID van de club van de manager die de app bedient.
+    #[serde(default)]
+    manager_club: Option<u32>,
+    /// Het team waarvan de app de training plant (plek in de teamlijst van de club; None = eigen team).
+    #[serde(default)]
+    training_team: Option<usize>,
     planner: PlannerSettings,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { lang: i18n::detect(), rate: 1.17, capture_delay: true, auto_training: true, allow_untested: false, keep_understanding: false, auto_read: false, auto_read_secs: 10, planner: PlannerSettings::default() }
+        Settings { lang: i18n::detect(), rate: 1.17, capture_delay: true, auto_training: true, allow_untested: false, keep_understanding: false, auto_read: false, auto_read_secs: 10, manager_club: None, training_team: None, planner: PlannerSettings::default() }
     }
 }
 
@@ -107,6 +113,7 @@ enum Page {
     Planning,
     Club,
     Squad,
+    Tactics,
     Sell,
     Settings,
 }
@@ -147,6 +154,9 @@ struct App {
     calendar: Vec<CalendarWeek>,
     year: Vec<WeekPlan>,
     live: LiveState,
+    /// de tactiek die de tactiekpagina toont (None: de tactiek die in FM in gebruik is)
+    tactic_pick: Option<usize>,
+    tactics_asked: bool,
     frames: u32,
 }
 
@@ -174,6 +184,7 @@ impl App {
             "planning" => Page::Planning,
             "club" => Page::Club,
             "squad" => Page::Squad,
+            "tactics" => Page::Tactics,
             "sell" | "buy" => Page::Sell,
             "settings" => Page::Settings,
             _ => Page::Overview,
@@ -203,6 +214,8 @@ impl App {
             cal_opts,
             calendar,
             year: Vec::new(),
+            tactic_pick: None,
+            tactics_asked: false,
             live: {
                 let mut l = LiveState::default();
                 l.sell.buy = std::env::var("FM27_PAGE").as_deref() == Ok("buy");
@@ -383,6 +396,7 @@ impl App {
                     (Page::Planning, icon::CALENDAR_DOTS, t!("Planning", "Planning", "Planejamento")),
                     (Page::Club, icon::BANK, t!("Club", "Club", "Clube")),
                     (Page::Squad, icon::USERS_THREE, t!("Selectie", "Squad", "Elenco")),
+                    (Page::Tactics, icon::STRATEGY, t!("Tactiek", "Tactics", "Táticas")),
                     (Page::Sell, icon::HANDSHAKE, t!("Transfers", "Transfers", "Transferências")),
                     (Page::Settings, icon::GEAR_SIX, t!("Instellingen", "Settings", "Configurações")),
                 ];
@@ -659,6 +673,14 @@ impl App {
         }
         let (m, e) = (self.live.train_status.clone(), self.live.train_error);
         self.status_line(ui, &m, e);
+        // testhulp: FM27_TEAMS_JSON=<bestand> toont de keuze zonder verbinding
+        let demo = std::env::var_os("FM27_TEAMS_JSON");
+        if let (Some(p), None) = (&demo, &self.live.teams) {
+            self.live.teams = std::fs::read_to_string(p).ok().and_then(|s| serde_json::from_str(&s).ok());
+        }
+        if connected || demo.is_some() {
+            self.team_picker(ui, ctx);
+        }
 
         // ---- statusblok: automatisch bijhouden
         let auto = self.settings.auto_training;
@@ -808,6 +830,85 @@ impl App {
     }
 
     // -------------------------------------------------------------------- planning
+
+    /// Keuze van manager (bij meer dan één in de save) en van het team waarvan de training gepland
+    /// wordt. Alleen zichtbaar als er iets te kiezen valt.
+    fn team_picker(&mut self, ui: &mut Ui, ctx: &egui::Context) {
+        let Some(data) = self.live.teams.clone() else { return };
+        let list = |k: &str| data.get(k).and_then(|v| v.as_array()).cloned().unwrap_or_default();
+        let (managers, teams) = (list("managers"), list("teams"));
+        if managers.len() < 2 && teams.len() < 2 {
+            return;
+        }
+        let team_name = |t: &Value| -> String {
+            let n = |k: &str| t.get(k).and_then(|v| v.as_u64()).unwrap_or(0);
+            let name = match (n("kind"), n("age_limit")) {
+                (0, _) => t!("Eerste elftal", "First team").to_string(),
+                (_, a) if (1..100).contains(&a) => t!(format!("Onder {a}"), format!("Under {a}")),
+                _ => t!(format!("Team {}", n("index") + 1), format!("Team {}", n("index") + 1)),
+            };
+            format!("{name} · {} {}", n("players"), t!("spelers", "players"))
+        };
+        let sel = |v: &Value| v.get("selected").and_then(|b| b.as_bool()) == Some(true);
+        let mut pick: Option<(Option<u32>, Option<usize>)> = None;
+        theme::card(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(theme::ic(icon::USERS_THREE).color(theme::ACCENT));
+                if managers.len() > 1 {
+                    ui.label(t!("Manager van", "Manager of"));
+                    let cur = managers.iter().find(|m| sel(m)).and_then(|m| m["club"].as_str()).unwrap_or("?").to_string();
+                    egui::ComboBox::from_id_salt("manager_pick").selected_text(cur).show_ui(ui, |ui| {
+                        for m in &managers {
+                            let uid = m["club_uid"].as_u64().unwrap_or(0) as u32;
+                            if ui.selectable_label(sel(m), m["club"].as_str().unwrap_or("?")).clicked() && !sel(m) {
+                                pick = Some((Some(uid), None));
+                            }
+                        }
+                    });
+                    ui.add_space(14.0);
+                }
+                if teams.len() > 1 {
+                    ui.label(t!("Training van", "Training of"));
+                    let cur = teams.iter().find(|x| sel(x)).map(&team_name).unwrap_or_else(|| "?".into());
+                    egui::ComboBox::from_id_salt("team_pick").selected_text(cur).width(210.0).show_ui(ui, |ui| {
+                        for x in &teams {
+                            if ui.selectable_label(sel(x), team_name(x)).clicked() && !sel(x) {
+                                let own = x.get("own").and_then(|b| b.as_bool()) == Some(true);
+                                let idx = x["index"].as_u64().unwrap_or(0) as usize;
+                                pick = Some((self.settings.manager_club, if own { None } else { Some(idx) }));
+                            }
+                        }
+                    });
+                }
+            });
+            if teams.iter().any(|x| sel(x) && x.get("own").and_then(|b| b.as_bool()) != Some(true)) {
+                ui.add_space(4.0);
+                ui.add(
+                    egui::Label::new(theme::dim(t!(
+                        "Dit is niet je eigen team. De app kan zijn training alleen plannen als FM er een eigen kalender voor bijhoudt (jij regelt de training van dit team). Het plan gebruikt de waarden die je het laatst hebt uitgelezen.",
+                        "This is not your own team. The app can only plan its training if FM keeps a calendar of its own for it (you run this team's training). The plan uses the values you read last."
+                    )))
+                    .wrap(),
+                );
+            } else if managers.len() > 1 {
+                ui.add_space(4.0);
+                ui.add(
+                    egui::Label::new(theme::dim(t!(
+                        "Club, selectie, transfers en training horen bij de gekozen manager. Lees de Breakdown van dit team opnieuw uit voordat je de training laat plannen.",
+                        "Club, squad, transfers and training follow the chosen manager. Read this team's Breakdown again before you let the app plan its training."
+                    )))
+                    .wrap(),
+                );
+            }
+        });
+        ui.add_space(14.0);
+        if let Some((club, team)) = pick {
+            self.settings.manager_club = club;
+            self.settings.training_team = team;
+            self.save_settings();
+            self.live.choose(ctx, (club, team));
+        }
+    }
 
     fn page_planning(&mut self, ui: &mut Ui) {
         let mut tab = self.plan_tab;
@@ -1317,6 +1418,283 @@ impl App {
     }
 
     // -------------------------------------------------------------------- verkopen
+
+    // -------------------------------------------------------------------- tactiek
+
+    fn page_tactics(&mut self, ui: &mut Ui, ctx: &egui::Context) {
+        use crate::tactics as tx;
+        // testhulp: FM27_TACTICS_JSON=<bestand> toont de pagina met bewaarde gegevens, zonder FM
+        let from_file = std::env::var_os("FM27_TACTICS_JSON");
+        if let (Some(f), None) = (&from_file, &self.live.tactics) {
+            self.live.tactics = std::fs::read_to_string(f).ok().and_then(|t| serde_json::from_str(&t).ok());
+        }
+        let connected = self.live.connected || (from_file.is_some() && self.live.tactics.is_some());
+        let busy = self.live.tactics_busy();
+        // bij het openen één keer vanzelf ophalen
+        if connected && !self.tactics_asked && from_file.is_none() {
+            self.tactics_asked = true;
+            self.live.load_tactics(ctx);
+        }
+        if !connected {
+            self.tactics_asked = false;
+        }
+        let mut reload = false;
+        theme::page_header(
+            ui,
+            t!("Tactiek", "Tactics"),
+            t!("Hoe goed je spelers bij de rollen van je tactiek passen", "How well your players fit the roles of your tactic"),
+            |ui| {
+                if theme::primary_button(ui, icon::ARROWS_CLOCKWISE, if busy { t!("Bezig…", "Reading…") } else { t!("Opnieuw uitlezen", "Read again") }, connected && !busy).clicked() {
+                    reload = true;
+                }
+            },
+        );
+        if reload {
+            self.live.load_tactics(ctx);
+        }
+        if !connected {
+            self.connect_card(ui, ctx);
+            return;
+        }
+        let err = self.live.tactics_error.clone();
+        self.status_line(ui, &err, true);
+        let Some(data) = self.live.tactics.clone() else {
+            if err.is_empty() {
+                theme::card(ui, |ui| {
+                    ui.label(theme::faint(t!("Tactiek uitlezen…", "Reading your tactic…")));
+                });
+            }
+            return;
+        };
+        let pick = self.tactic_pick.filter(|i| *i < data.tactics.len()).unwrap_or(data.current.min(data.tactics.len() - 1));
+        let tactic = &data.tactics[pick];
+        let in_use = pick == data.current.min(data.tactics.len() - 1);
+        let mut places = tx::places(tactic);
+        // FM bewaart de basiself in de volgorde van de tactiek in gebruik: bij een andere tactiek
+        // zegt die volgorde niets over wie waar zou staan
+        if !in_use {
+            for p in &mut places {
+                p.uid = None;
+            }
+        }
+        let by_uid: std::collections::HashMap<u32, &tx::Player> = data.players.iter().map(|p| (p.uid, p)).collect();
+        let in_eleven: std::collections::HashSet<u32> = places.iter().filter_map(|p| p.uid).collect();
+        // veldvolgorde: keeper eerst, dan per linie van rechts naar links
+        let mut order: Vec<usize> = (0..places.len()).collect();
+        order.sort_by_key(|&i| places[i].oop_order);
+        let fits: Vec<Option<f32>> = places.iter().map(|pl| pl.uid.and_then(|u| by_uid.get(&u)).map(|p| tx::fit(p, pl))).collect();
+        let known: Vec<f32> = fits.iter().flatten().copied().collect();
+        let avg = if known.is_empty() { 0.0 } else { known.iter().sum::<f32>() / known.len() as f32 };
+        let weakest = order.iter().filter_map(|&i| fits[i].map(|f| (i, f))).min_by(|a, b| a.1.total_cmp(&b.1));
+        let best = tx::best_eleven(&places, &data.players);
+        let best_avg = if best.len() == places.len() { places.iter().zip(&best).map(|(pl, &j)| tx::fit(&data.players[j], pl)).sum::<f32>() / places.len() as f32 } else { avg };
+
+        // welke tactiek
+        ui.horizontal(|ui| {
+            let labels: Vec<String> = data
+                .tactics
+                .iter()
+                .map(|t| {
+                    let mut l = format!("{} {}", t!("Tactiek", "Tactic"), t.index + 1);
+                    if t.index == data.tactics[data.current.min(data.tactics.len() - 1)].index {
+                        l.push_str(t!(" · in gebruik", " · in use"));
+                    }
+                    l
+                })
+                .collect();
+            let options: Vec<(usize, &str)> = labels.iter().enumerate().map(|(i, l)| (i, l.as_str())).collect();
+            let mut v = pick;
+            if theme::segmented(ui, &mut v, &options) {
+                self.tactic_pick = Some(v);
+                theme::restart_enter(ctx);
+            }
+            if !tactic.style.is_empty() {
+                theme::pill(ui, &format!("{} {}", t!("sjabloon", "template"), tactic.style), theme::TEXT_DIM);
+            }
+        });
+        ui.add_space(12.0);
+        if !in_use {
+            ui.add(
+                egui::Label::new(theme::faint(t!(
+                    "Dit is niet de tactiek die nu in gebruik is: FM bewaart je basiself alleen voor die tactiek. Hieronder staat daarom alleen de beste elf voor deze tactiek.",
+                    "This is not the tactic in use: FM keeps your starting eleven for that tactic only. So below you only see the best eleven for this tactic."
+                )))
+                .wrap(),
+            );
+            ui.add_space(8.0);
+        }
+
+        ui.columns(3, |c| {
+            theme::stat_tile(&mut c[0], icon::STRATEGY, t!("Elftal nu", "Current eleven"), &format!("{avg:.0}"), t!("gemiddelde geschiktheid", "average fit"), theme::rgb(level_color(avg)), Some(avg));
+            let gain = best_avg - avg;
+            theme::stat_tile(
+                &mut c[1],
+                icon::USERS_THREE,
+                t!("Beste elf", "Best eleven"),
+                &format!("{best_avg:.0}"),
+                &if gain >= 0.5 { t!(format!("+{gain:.1} te winnen"), format!("+{gain:.1} to gain")) } else { t!("je elftal is al het beste".to_string(), "your eleven is already the best".to_string()) },
+                theme::rgb(level_color(best_avg)),
+                Some(best_avg),
+            );
+            let (wname, wval) = weakest
+                .map(|(i, f)| (format!("{} · {}", places[i].line.label(places[i].side), places[i].uid.and_then(|u| by_uid.get(&u)).map(|p| p.name.as_str()).unwrap_or("?")), f))
+                .unwrap_or((t!("geen elftal gekozen", "no eleven picked").to_string(), 0.0));
+            theme::stat_tile(&mut c[2], icon::WARNING, t!("Zwakste plek", "Weakest place"), &format!("{wval:.0}"), &wname, theme::rgb(level_color(wval)), Some(wval));
+        });
+        ui.add_space(14.0);
+
+        // de elf plekken
+        theme::card(ui, |ui| {
+            ui.label(theme::h2(t!("Je elftal in deze tactiek", "Your eleven in this tactic")));
+            ui.add_space(6.0);
+            egui::Grid::new("tactic_slots").num_columns(6).spacing([18.0, 10.0]).striped(true).show(ui, |ui| {
+                for h in [t!("Plek", "Place"), t!("Rol met / zonder bal", "Role in / out of possession"), t!("Speler", "Player"), t!("Geschikt", "Fit"), t!("Positie", "Position"), t!("Beter in de selectie", "Better in the squad")] {
+                    ui.label(theme::caps(h));
+                }
+                ui.end_row();
+                for &i in &order {
+                    let pl = &places[i];
+                    ui.label(theme::label_strong(pl.line.label(pl.side)));
+                    let (ic, iname) = tx::ip_label(pl.ip);
+                    let (oc, oname) = tx::oop_label(pl.oop);
+                    ui.horizontal(|ui| {
+                        theme::pill(ui, &ic, theme::ACCENT_HI).on_hover_text(iname);
+                        theme::pill(ui, &oc, theme::INFO).on_hover_text(oname);
+                    });
+                    let cur = pl.uid.and_then(|u| by_uid.get(&u));
+                    match cur {
+                        Some(p) => {
+                            let f = tx::fit(p, pl);
+                            let r = tx::position_rating(p, pl);
+                            ui.horizontal(|ui| {
+                                ui.label(theme::label_strong(&p.name));
+                                if p.injured {
+                                    theme::pill(ui, t!("geblesseerd", "injured"), theme::DANGER);
+                                }
+                                if p.banned {
+                                    theme::pill(ui, t!("geschorst", "suspended"), theme::WARNING);
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.scope(|ui| {
+                                    ui.set_width(80.0);
+                                    theme::progress(ui, f, 6.0, theme::rgb(level_color(f)));
+                                });
+                                ui.label(RichText::new(format!("{f:.0}")).color(theme::TEXT));
+                            });
+                            theme::pill(ui, tx::position_word(r), theme::rgb(level_color(r as f32 * 5.0)));
+                            // de beste speler buiten de elf voor deze plek
+                            let alt = data
+                                .players
+                                .iter()
+                                .filter(|q| !in_eleven.contains(&q.uid) && !q.injured && !q.banned)
+                                .map(|q| (q, tx::fit(q, pl)))
+                                .max_by(|a, b| a.1.total_cmp(&b.1));
+                            match alt {
+                                Some((q, qf)) if qf >= f + 2.0 => {
+                                    ui.label(RichText::new(format!("{} (+{:.0})", q.name, qf - f)).color(theme::SUCCESS));
+                                }
+                                _ => {
+                                    ui.label(theme::faint("—"));
+                                }
+                            }
+                        }
+                        None => {
+                            ui.label(theme::faint(t!("leeg", "empty")));
+                            ui.label(theme::faint("—"));
+                            ui.label(theme::faint("—"));
+                            ui.label(theme::faint("—"));
+                        }
+                    }
+                    ui.end_row();
+                }
+            });
+        });
+
+        // de beste elf: alleen wat anders is dan nu
+        theme::card(ui, |ui| {
+            ui.label(theme::h2(t!("Beste elf voor deze tactiek", "Best eleven for this tactic")));
+            ui.add(
+                egui::Label::new(theme::faint(t!(
+                    "De verdeling van je fitte spelers over de elf plekken met de hoogste totale geschiktheid. Geblesseerde en geschorste spelers doen niet mee.",
+                    "The way to spread your available players over the eleven places with the highest total fit. Injured and suspended players are left out."
+                )))
+                .wrap(),
+            );
+            ui.add_space(6.0);
+            let mut changes = 0;
+            if best.len() == places.len() {
+                for &i in &order {
+                    let pl = &places[i];
+                    let b = &data.players[best[i]];
+                    if pl.uid == Some(b.uid) {
+                        continue;
+                    }
+                    changes += 1;
+                    let now = pl.uid.and_then(|u| by_uid.get(&u));
+                    ui.horizontal(|ui| {
+                        ui.scope(|ui| {
+                            ui.set_width(90.0);
+                            ui.label(theme::label_strong(pl.line.label(pl.side)));
+                        });
+                        ui.label(theme::dim(now.map(|p| p.name.as_str()).unwrap_or(t!("leeg", "empty"))));
+                        ui.label(theme::ic(icon::ARROW_RIGHT).color(theme::TEXT_FAINT));
+                        ui.label(theme::label_strong(&b.name));
+                        let (bf, nf) = (tx::fit(b, pl), now.map(|p| tx::fit(p, pl)));
+                        theme::pill(ui, &match nf { Some(nf) => format!("{nf:.0} → {bf:.0}"), None => format!("{bf:.0}") }, theme::rgb(level_color(bf)));
+                        if in_eleven.contains(&b.uid) {
+                            ui.label(theme::faint(t!("(schuift door)", "(moves across)")));
+                        }
+                    });
+                }
+            }
+            if changes == 0 {
+                ui.label(theme::dim(t!("Je huidige elf is volgens deze berekening al de beste.", "By this calculation your current eleven is already the best.")));
+            }
+        });
+
+        // een rol die beter bij de speler past
+        let role_tips: Vec<(String, &'static str, &'static str, &'static str, f32, f32)> = order
+            .iter()
+            .filter_map(|&i| {
+                let pl = &places[i];
+                let p = pl.uid.and_then(|u| by_uid.get(&u))?;
+                let (r, now, then) = tx::better_role(p, pl)?;
+                Some((p.name.clone(), tx::ip_role(pl.ip?)?.code, r.code, r.name, now, then))
+            })
+            .collect();
+        theme::card(ui, |ui| {
+            ui.label(theme::h2(t!("Rollen die beter passen", "Roles that fit better")));
+            ui.add(
+                egui::Label::new(theme::faint(t!(
+                    "Een andere rol met bal in dezelfde linie waar de attributen van de speler duidelijk beter bij passen.",
+                    "Another in-possession role in the same line that the player's attributes suit clearly better."
+                )))
+                .wrap(),
+            );
+            ui.add_space(6.0);
+            if role_tips.is_empty() {
+                ui.label(theme::dim(t!("Geen: elke speler staat in een rol die bij hem past.", "None: every player is in a role that suits him.")));
+            }
+            for (name, cur, code, full, now, then) in &role_tips {
+                ui.horizontal(|ui| {
+                    ui.label(theme::label_strong(name));
+                    theme::pill(ui, &format!("{cur} {now:.0}"), theme::TEXT_DIM);
+                    ui.label(theme::ic(icon::ARROW_RIGHT).color(theme::TEXT_FAINT));
+                    theme::pill(ui, &format!("{code} {then:.0}"), theme::SUCCESS).on_hover_text(*full);
+                    ui.label(theme::faint(*full));
+                });
+            }
+        });
+
+        ui.add(
+            egui::Label::new(theme::faint(t!(
+                "De rollen, posities en attributen komen uit FM. Welke attributen bij een rol horen is onze eigen inschatting, en links of rechts is afgeleid uit de volgorde van de plekken: zie de score als hulpmiddel, niet als cijfer van FM. Er wordt niets in FM veranderd.",
+                "Roles, positions and attributes come from FM. Which attributes belong to a role is our own estimate, and left or right is derived from the order of the places: treat the score as a guide, not as a number from FM. Nothing is changed in FM."
+            )))
+            .wrap(),
+        );
+    }
 
     fn page_sell(&mut self, ui: &mut Ui, ctx: &egui::Context) {
         let busy = self.live.busy() || self.live.sell_busy();
@@ -1848,6 +2226,30 @@ impl App {
                     ui.label(t!("Doelen bijstellen elke (weken)", "Re-target every (weeks)", "Reajustar objetivos a cada (semanas)"));
                     dirty |= ui.add(egui::DragValue::new(&mut self.settings.planner.replan_every_weeks).range(1..=8)).changed();
                 });
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    ui.label(t!("Rust", "Rest"));
+                    use planner::Load;
+                    dirty |= theme::segmented(
+                        ui,
+                        &mut self.settings.planner.load,
+                        &[(Load::Light, t!("Meer rust", "More rest")), (Load::Balanced, t!("Gebalanceerd", "Balanced")), (Load::Intense, t!("Minder rust", "Less rest"))],
+                    );
+                });
+                ui.add(
+                    egui::Label::new(theme::dim(match self.settings.planner.load {
+                        planner::Load::Light => t!(
+                            "Elke trainingsdag en de dag voor een wedstrijd eindigt met Rest.",
+                            "Every training day and the day before a match ends with Rest."
+                        ),
+                        planner::Load::Balanced => t!("Het gewone plan.", "The regular plan."),
+                        planner::Load::Intense => t!(
+                            "De dag na een wedstrijd krijgt na Recovery ook een tactische sessie.",
+                            "The day after a match gets a tactical session after Recovery."
+                        ),
+                    }))
+                    .wrap(),
+                );
             });
         });
         ui.add_space(14.0);
@@ -1946,6 +2348,7 @@ impl eframe::App for App {
             self.start_analysis(ctx, None);
         }
         self.live.allow_untested = self.settings.allow_untested;
+        self.live.choice = (self.settings.manager_club, self.settings.training_team);
         self.live.keep_understanding = self.settings.keep_understanding;
         self.live.tick(ctx, &self.eff, &self.settings.planner, self.settings.auto_training);
         self.sidebar(ctx);
@@ -1968,6 +2371,7 @@ impl eframe::App for App {
                         Page::Planning => self.page_planning(ui),
                         Page::Club => self.page_club(ui, ctx),
                         Page::Squad => self.page_squad(ui, ctx),
+                        Page::Tactics => self.page_tactics(ui, ctx),
                         Page::Sell => self.page_sell(ui, ctx),
                         Page::Settings => self.page_settings(ui),
                     }

@@ -74,6 +74,138 @@ impl Analysis {
 
 /// Legt het FM27-venster vast (vereist "Schermopname"-toestemming in Systeeminstellingen).
 pub fn capture_fm_window() -> Result<RgbaImage> {
+    #[cfg(target_os = "macos")]
+    return mac_capture::capture();
+    #[cfg(not(target_os = "macos"))]
+    capture_fm_window_xcap()
+}
+
+/// De vensters die de Mac-opname ziet (diagnose: `fm27-trainer windows`).
+#[cfg(target_os = "macos")]
+pub fn mac_windows() -> String {
+    mac_capture::describe()
+}
+
+/// macOS: eigen opname in plaats van xcap. xcap vraagt alleen de vensters op die nu in beeld zijn
+/// en slaat elk venster zonder titel over. Daardoor vond de app FM niet als FM schermvullend op een
+/// andere Space stond dan de app, en ook niet zonder Schermopname-toestemming (dan geeft macOS geen
+/// titels): in beide gevallen "geen venster gevonden" (melding van Sem, 13 nov 2026).
+#[cfg(target_os = "macos")]
+mod mac_capture {
+    use anyhow::{Result, anyhow, bail};
+    use image::RgbaImage;
+    use objc2_core_foundation::{CFDictionary, CFNumber, CFNumberType, CFString, CGRect};
+    use objc2_core_graphics::{
+        CGDataProvider, CGImage, CGPreflightScreenCaptureAccess, CGRectMakeWithDictionaryRepresentation,
+        CGRequestScreenCaptureAccess, CGWindowImageOption, CGWindowListCopyWindowInfo, CGWindowListCreateImage,
+        CGWindowListOption,
+    };
+    use std::ffi::c_void;
+
+    struct Win {
+        id: u32,
+        owner: String,
+        rect: CGRect,
+        layer: i32,
+        onscreen: bool,
+    }
+
+    fn value(d: &CFDictionary, key: &str) -> Option<*const c_void> {
+        let k = CFString::from_str(key);
+        let v = unsafe { d.value((k.as_ref() as *const CFString).cast()) };
+        (!v.is_null()).then_some(v)
+    }
+
+    fn int(d: &CFDictionary, key: &str) -> Option<i32> {
+        let n = value(d, key)? as *const CFNumber;
+        let mut out: i32 = 0;
+        unsafe { (*n).value(CFNumberType::IntType, &mut out as *mut _ as *mut c_void) }.then_some(out)
+    }
+
+    fn windows() -> Vec<Win> {
+        let mut out = Vec::new();
+        let Some(list) = (unsafe { CGWindowListCopyWindowInfo(CGWindowListOption::OptionAll, 0) }) else { return out };
+        for i in 0..list.count() {
+            let d = unsafe { list.value_at_index(i) } as *const CFDictionary;
+            if d.is_null() {
+                continue;
+            }
+            let d = unsafe { &*d };
+            let Some(id) = int(d, "kCGWindowNumber") else { continue };
+            let owner = value(d, "kCGWindowOwnerName").map(|v| unsafe { (*(v as *const CFString)).to_string() }).unwrap_or_default();
+            let mut rect = CGRect::default();
+            let Some(b) = value(d, "kCGWindowBounds") else { continue };
+            if !unsafe { CGRectMakeWithDictionaryRepresentation(Some(&*(b as *const CFDictionary)), &mut rect) } {
+                continue;
+            }
+            out.push(Win {
+                id: id as u32,
+                owner,
+                rect,
+                layer: int(d, "kCGWindowLayer").unwrap_or(0),
+                onscreen: int(d, "kCGWindowIsOnscreen").unwrap_or(0) != 0,
+            });
+        }
+        out
+    }
+
+    pub fn describe() -> String {
+        let mut s = format!("screen recording allowed: {}\n", unsafe { CGPreflightScreenCaptureAccess() });
+        for w in windows() {
+            s.push_str(&format!(
+                "{} | {:?} | {}x{} @ {},{} | layer {} | onscreen {}\n",
+                w.id, w.owner, w.rect.size.width, w.rect.size.height, w.rect.origin.x, w.rect.origin.y, w.layer, w.onscreen
+            ));
+        }
+        s
+    }
+
+    pub fn capture() -> Result<RgbaImage> {
+        // het spelvenster: van FM, gewone laag, het grootste (FM heeft ook lege hulpvensters van 30–44 px hoog)
+        let best = windows()
+            .into_iter()
+            .filter(|w| w.owner.contains("Football Manager") && w.layer == 0 && w.rect.size.width >= 400.0 && w.rect.size.height >= 300.0)
+            .max_by(|a, b| (a.rect.size.width * a.rect.size.height).total_cmp(&(b.rect.size.width * b.rect.size.height)));
+        let Some(w) = best else {
+            bail!("{}", crate::t!("Geen Football Manager-venster gevonden. Draait FM27?", "No Football Manager window found. Is FM27 running?"));
+        };
+        if !unsafe { CGPreflightScreenCaptureAccess() } {
+            // laat macOS de vraag tonen (de eerste keer) en zet de app in de lijst
+            unsafe { CGRequestScreenCaptureAccess() };
+            bail!("{}", crate::t!(
+                "Geen toestemming voor Schermopname. Zet FM27 Trainer aan bij Systeeminstellingen → Privacy en beveiliging → Schermopname en start de app opnieuw.",
+                "No Screen Recording permission. Switch on FM27 Trainer under System Settings → Privacy & Security → Screen Recording, then restart the app."
+            ));
+        }
+        #[allow(deprecated)]
+        let img = unsafe { CGWindowListCreateImage(w.rect, CGWindowListOption::OptionIncludingWindow, w.id, CGWindowImageOption::Default) };
+        let (width, height) = (unsafe { CGImage::width(img.as_deref()) }, unsafe { CGImage::height(img.as_deref()) });
+        let data = unsafe { CGDataProvider::data(CGImage::data_provider(img.as_deref()).as_deref()) }.map(|d| d.to_vec()).unwrap_or_default();
+        let row = unsafe { CGImage::bytes_per_row(img.as_deref()) };
+        if width < 200 || row < width * 4 || data.len() < row * height {
+            bail!("{}", crate::t!("Vastgelegd beeld is leeg; staat Schermopname-toestemming aan?", "Captured image is empty; is Screen Recording permission enabled?"));
+        }
+        // rijen kunnen opvulling hebben; BGRA → RGBA
+        let mut buf = Vec::with_capacity(width * height * 4);
+        for r in data.chunks_exact(row).take(height) {
+            buf.extend_from_slice(&r[..width * 4]);
+        }
+        for px in buf.chunks_exact_mut(4) {
+            px.swap(0, 2);
+        }
+        // een venster op een andere Space waarvan macOS geen beeld bewaart, komt helemaal zwart terug
+        if buf.chunks_exact(4).step_by(97).all(|p| p[0] < 8 && p[1] < 8 && p[2] < 8) {
+            bail!("{}", crate::t!(
+                "Het FM-venster is niet in beeld. Zet FM zichtbaar (met de Breakdown open) en lees opnieuw uit.",
+                "The FM window is not visible. Bring FM into view (with the Breakdown open) and read again."
+            ));
+        }
+        RgbaImage::from_raw(width as u32, height as u32, buf).ok_or_else(|| anyhow!("opname omzetten mislukt"))
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn capture_fm_window_xcap() -> Result<RgbaImage> {
     let windows = xcap::Window::all().context("vensters opvragen mislukt")?;
     // Op Windows het venster van fm.exe zelf. Alleen op de titel afgaan pakte ook een browser met
     // een pagina over Football Manager open (een forum, de downloadpagina met een schermafbeelding

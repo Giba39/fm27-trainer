@@ -967,7 +967,7 @@ dependencies = [
 
 [[package]]
 name = "fm27-agent"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "serde",
  "serde_json",
@@ -976,7 +976,7 @@ dependencies = [
 
 [[package]]
 name = "fm27-trainer"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "anyhow",
  "chrono",
@@ -985,6 +985,8 @@ dependencies = [
  "fm27-agent",
  "image",
  "objc2 0.6.5",
+ "objc2-core-foundation",
+ "objc2-core-graphics",
  "objc2-foundation 0.3.2",
  "objc2-vision",
  "serde",

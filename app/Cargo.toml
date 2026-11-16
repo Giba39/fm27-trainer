@@ -1,6 +1,6 @@
 [package]
 name = "fm27-trainer"
-version = "0.2.9"
+version = "0.2.7"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/SemHiel2003/fm27-trainer"
@@ -21,11 +21,12 @@ image = { version = "0.25.10", default-features = false, features = ["png"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sys-locale = "0.3"
-xcap = "0.9.8"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.5"
 objc2-foundation = "0.3.2"
+objc2-core-foundation = "0.3.2"
+objc2-core-graphics = "0.3.2"
 objc2-vision = { version = "0.3.2", default-features = false, features = [
     "std",
     "objc2-core-foundation",
@@ -43,3 +44,9 @@ windows = { version = "0.62", features = ["Foundation", "Foundation_Collections"
 
 [build-dependencies]
 winresource = "0.1"
+
+# Vensteropname op Windows (en Linux). Niet op de Mac: daar heeft de app een eigen opname, en xcap
+# koppelde de Intel-versie aan @rpath/libswiftCoreMedia.dylib zonder rpath, waardoor 0.2.6 op een
+# Intel-Mac niet startte (GitHub #5).
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+xcap = "0.9.8"

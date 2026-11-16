@@ -72,6 +72,11 @@ Players who have never trained with the team yet are skipped until they have.
   <img src="docs/images/squad.png" alt="Squad page with morale, condition, injuries and actions" width="49%">
 </p>
 
+**Tactics.** The Tactics page reads your tactic from FM (roles in and out of possession, positions, attributes)
+and shows per place how well the player fits, who in the squad fits better, the best eleven for the tactic and
+roles that suit a player better. The scores are the app's own estimate, and nothing is changed in FM. Checked
+live on the Mac; on Windows only in simulation so far.
+
 **Planning and export.** Week and season plans as HTML (printable), CSV and JSON, even without the live module.
 
 **English and Dutch.** Follows your system language; switch any time in the sidebar.

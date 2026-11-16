@@ -705,6 +705,9 @@ struct Market {
     milan_player_contract: u64,
     our_selection: u64,
     national_selection: u64,
+    /// tweede week in de kalender van het jeugdteam en van de tweede manager (Milan)
+    u21_week: u64,
+    milan_week: u64,
 }
 
 /// Ajax (de menselijke manager) met Wijndal (aanvoerder, ook in de U21-lijst), twee andere spelers
@@ -790,10 +793,33 @@ fn build_market(abi: Abi, l: &Layout, base: u64, staff_rva: u64, clubs_rva: u64,
     h.w64(human + l.staff_contract + l.human_shift, hc);
     h.w64(hc + 0x08, human + l.staff_identity + l.human_shift);
     h.w64(hc + 0x10, senior);
-    let staff = h.alloc(8);
+    let staff = h.alloc(16);
     h.w64(staff, human);
     statics.w64(base + staff_rva, staff);
-    statics.w64(base + staff_rva + 8, staff + 8);
+    statics.w64(base + staff_rva + 8, staff + 16);
+    // soort team en leeftijdsgrens; een kalender voor het eerste elftal en een eigen voor de jeugd
+    h.w8(senior + 0x2C, 100);
+    h.w8(u21 + 0x28, 10);
+    h.w8(u21 + 0x2C, 21);
+    let calendar = |h: &mut Heap, team: u64, code: u16| {
+        let tb = h.alloc(0x100);
+        h.w64(tb, team);
+        let mut weeks = Vec::new();
+        for w in 0..2u16 {
+            let rec = h.alloc(0x60);
+            h.put(rec + 0x0C, &date_bytes(2027, 74 + 7 * w));
+            for d in 0..7u64 {
+                for k in 1..4u64 {
+                    h.w16(rec + 0x10 + d * 8 + k * 2, code);
+                }
+            }
+            weeks.push(rec);
+        }
+        h.list(tb + 0x28, &weeks);
+        weeks[1]
+    };
+    calendar(&mut h, senior, 300);
+    let u21_week = calendar(&mut h, u21, 301);
     let sched = h.alloc(0xA0);
     h.put(sched + 0x94, &date_bytes(2027, 76));
     h.w64(senior + 0xA0, sched);
@@ -809,6 +835,15 @@ fn build_market(abi: Abi, l: &Layout, base: u64, staff_rva: u64, clubs_rva: u64,
     let milan = club(&mut h, 45, "AC Milan", milan_fin, 0);
     let ms = team(&mut h, milan);
     h.list(milan + 0x18, &[ms]);
+    // een tweede menselijke manager in dezelfde save, bij Milan
+    let human2 = h.alloc(0x600);
+    let hc2 = h.alloc(0x80);
+    h.w64(human2 + l.staff_contract + l.human_shift, hc2);
+    h.w64(hc2 + 0x08, human2 + l.staff_identity + l.human_shift);
+    h.w64(hc2 + 0x10, ms);
+    h.w64(staff + 8, human2);
+    let milan_week = calendar(&mut h, ms, 302);
+    h.w64(ms + 0xA0, sched);
     let block = h.alloc(144);
     let (mut milan_player, mut milan_player_contract) = (0, 0);
     for i in 0..3u64 {
@@ -848,11 +883,12 @@ fn build_market(abi: Abi, l: &Layout, base: u64, staff_rva: u64, clubs_rva: u64,
 
     // opstellingen: die van Ajax, die van een nationaal team, en een vrijgegeven blok
     let vt = fake_class(abi, base, "simatch", "PREPARED_TACTICS_CREATOR_ARRAY");
-    let selection = |h: &mut Heap, ids: &[u32], sound: bool| {
+    let selection = |h: &mut Heap, ids: &[u32], sound: bool, block: u64| {
         let o = h.alloc(0x90);
         h.w64(o, vt);
         if sound {
             let a = h.alloc(8);
+            h.w64(a, block);
             h.w64(o + 8, a);
             h.w64(o + 16, a + 8);
             h.w64(o + 24, a + 8);
@@ -862,13 +898,28 @@ fn build_market(abi: Abi, l: &Layout, base: u64, staff_rva: u64, clubs_rva: u64,
         }
         o
     };
-    let our_selection = selection(&mut h, &[5003, 5001, 5004, 5002], true);
-    let national_selection = selection(&mut h, &[9001, 5001, 9002, 9003, 9004, 9005], true);
-    let _freed = selection(&mut h, &[5001, 5003, 5004], false);
+    // het tactiekblok van Ajax: rolmaskers met bal en zonder bal (Windows 0x158/0x478, Mac 8
+    // verder), de stijl, en de tabel die zegt welke plek zonder bal bij een plek met bal hoort
+    let block = h.alloc(0x800);
+    let d = l.p_positions - 0x148;
+    let ip_bits = [12u64, 1, 1, 3, 3, 15, 57, 57, 27, 43, 40];
+    let oop_bits = [1u64, 10, 5, 5, 10, 16, 38, 27, 27, 38, 42];
+    for i in 0..11u64 {
+        h.w64(block + 0x160 - d + i * 0x48, 1 << ip_bits[i as usize] | 1 << 21);
+        h.w64(block + 0x480 - d + i * 0x48, 1 << oop_bits[i as usize] | 1 << 22);
+    }
+    h.put(block + 0x100, b"EGEG");
+    h.put(block + 0x7A8 - d, &[0x1B, 0, 3, 2, 4, 1, 5, 7, 8, 6, 9, 10]);
+    // Klaassen: natuurlijke aanvallende middenvelder met passing 90 (FM toont 18)
+    h.w8(p3 + l.p_positions + 10, 20);
+    h.w8(p3 + 0x15E + d, 90);
+    let our_selection = selection(&mut h, &[5003, 5001, 5004, 5002], true, block);
+    let national_selection = selection(&mut h, &[9001, 5001, 9002, 9003, 9004, 9005], true, 0);
+    let _freed = selection(&mut h, &[5001, 5003, 5004], false, 0);
 
     h.install(true);
     statics.install(false);
-    Market { finance: fin, senior, u21, wijndal, wijndal_contract: wc, milan, milan_finance: milan_fin, milan_player, milan_player_contract, our_selection, national_selection }
+    Market { finance: fin, senior, u21, wijndal, wijndal_contract: wc, milan, milan_finance: milan_fin, milan_player, milan_player_contract, our_selection, national_selection, u21_week, milan_week }
 }
 
 fn snapshot() -> Vec<Vec<u8>> {
@@ -881,6 +932,41 @@ fn list_items(hdr: u64) -> Vec<u64> {
 }
 
 fn run_market(l: &'static Layout, m: &Market) {
+    // twee managers in de save en twee teams bij de club: kiezen wat de app bedient
+    let t = call(json!({"cmd": "teams"})).unwrap();
+    assert_eq!(t["managers"].as_array().unwrap().len(), 2);
+    assert_eq!(t["managers"][0], json!({"club_uid": 992, "club": "AFC Ajax", "selected": true}));
+    assert_eq!(t["managers"][1]["club"], "AC Milan");
+    assert_eq!(t["teams"].as_array().unwrap().len(), 2);
+    assert_eq!(t["teams"][0], json!({"index": 0, "kind": 0, "age_limit": 100, "players": 4, "own": true, "selected": true}));
+    assert_eq!(t["teams"][1]["age_limit"], 21);
+    let first_code = || call(json!({"cmd": "training_weeks"})).unwrap()["weeks"][0]["days"][0][0].clone();
+    assert_eq!(first_code(), 300, "eerste elftal");
+    let t = call(json!({"cmd": "select", "team": 1})).unwrap();
+    assert_eq!(t["teams"][1]["selected"], true);
+    assert_eq!(first_code(), 301, "kalender van het jeugdteam");
+    assert_eq!(call(json!({"cmd": "squad"})).unwrap().as_array().unwrap().len(), 4, "de selectie blijft die van het eerste elftal");
+    // schrijven gaat naar het gekozen team (week 2 ligt in de toekomst), en terug met undo
+    let week2 = json!({"cmd": "set_week", "start": {"year": 2027, "doy": 81}, "days": vec![[4u16, 5, 1]; 7]});
+    assert_eq!(call(week2.clone()).unwrap()["days"], 7);
+    assert_eq!(mem::u16_at(m.u21_week + 0x10 + 2), Some(4));
+    call(json!({"cmd": "undo"})).unwrap();
+    assert_eq!(mem::u16_at(m.u21_week + 0x10 + 2), Some(301));
+    // de andere manager: club, selectie en kalender van Milan
+    let t = call(json!({"cmd": "select", "club": 45})).unwrap();
+    assert_eq!(t["managers"][1]["selected"], true);
+    assert_eq!(t["teams"].as_array().unwrap().len(), 1);
+    assert_eq!(call(json!({"cmd": "club"})).unwrap()["name"], "AC Milan");
+    assert_eq!(first_code(), 302);
+    assert_eq!(call(week2).unwrap()["days"], 7);
+    assert_eq!(mem::u16_at(m.milan_week + 0x10 + 2), Some(4));
+    call(json!({"cmd": "undo"})).unwrap();
+    // een club zonder menselijke manager kiezen verandert niets; daarna terug naar Ajax
+    assert_eq!(call(json!({"cmd": "select", "club": 77})).unwrap()["managers"][1]["selected"], true);
+    call(json!({"cmd": "select", "club": 992})).unwrap();
+    assert_eq!(call(json!({"cmd": "club"})).unwrap()["name"], "AFC Ajax");
+    assert_eq!(first_code(), 300);
+
     // clubs zoeken
     let hits = call(json!({"cmd": "clubs", "query": "milan"})).unwrap();
     let names: Vec<&str> = hits.as_array().unwrap().iter().map(|c| c["name"].as_str().unwrap()).collect();
@@ -896,6 +982,25 @@ fn run_market(l: &'static Layout, m: &Market) {
     assert_eq!(w["listed"], 1);
     assert_eq!(w["contract_ends"], json!({"year": 2029, "doy": 181}));
     assert_eq!(squad.as_array().unwrap().iter().find(|p| p["uid"] == 4).unwrap()["player_coach"], true);
+
+    // de tactiek van de club: rollen per plek, de volgorde zonder bal, en attributen en posities
+    let t = call(json!({"cmd": "tactics"})).unwrap();
+    assert_eq!(t["current"], 0);
+    assert_eq!(t["tactics"].as_array().unwrap().len(), 1);
+    let tac = &t["tactics"][0];
+    assert_eq!(tac["style"], "GEGE");
+    let slots = tac["slots"].as_array().unwrap();
+    assert_eq!(slots.iter().map(|s| s["ip"].as_u64().unwrap()).collect::<Vec<_>>(), [12, 1, 1, 3, 3, 15, 57, 57, 27, 43, 40]);
+    // plek 1 (met bal) hoort bij plek 3 zonder bal: de dekkende centrale verdediger (bit 5)
+    assert_eq!((slots[1]["oop"].as_u64(), slots[1]["oop_order"].as_u64()), (Some(5), Some(3)));
+    assert_eq!((slots[4]["oop"].as_u64(), slots[4]["oop_order"].as_u64()), (Some(10), Some(1)));
+    assert_eq!(slots[0]["uid"], 2, "Klaassen (persoon 5003) staat op de eerste plek");
+    assert_eq!(slots[1]["uid"], 37058888);
+    assert!(slots[4]["uid"].is_null(), "een lege plek heeft geen speler");
+    let k = t["players"].as_array().unwrap().iter().find(|p| p["uid"] == 2).unwrap();
+    assert_eq!(k["positions"][10], 20);
+    assert_eq!(k["attributes"]["passing"], 18);
+    assert_eq!(t["bench"].as_array().unwrap().len(), 0);
 
     // eerst alleen controleren: er verandert niets
     let before = snapshot();
