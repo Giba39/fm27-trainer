@@ -130,7 +130,56 @@ met `expect`), `discover`. Zie `agent/src/lib.rs`.
   Instellingen); Club, Selectie en Transfers met een verbonden FM zijn niet opnieuw bekeken.
 - `cargo test -p fm27-trainer`: nu 4 tests (9 met de tactiekhulp van 14 nov, 10 met de rusttest van 16 nov).
 
-## Mac-opname (13 nov 2026, na 0.2.6, nog niet uitgebracht)
+## Versie 0.2.7 (16 nov 2026, uitgebracht) en open meldingen
+
+- Uitgebracht op 16 nov 2026: tag `v0.2.7` op `origin` (openbaar), commit `c01d144`, Mac-DMG (genotariseerd, via
+  `./release.sh` + `gh release upload`) en Windows-zip (GitHub Actions). Lokaal heet de openbare remote `origin`
+  en de privé repo `dev`. Sortitoutsi (post 78370) is bijgewerkt en er staat een release-bericht.
+- **Open: "colour and fill disagree"** (twee melders op 0.2.6: Tactical Complexity, Opposition Player Knowledge,
+  beide de onderste rij van een groepje van twee). Oorzaak onbekend; de banden in `color_band` (`app/src/vision.rs`)
+  zijn alleen op Sem's Ajax- en Sunderland-opnames gemeten. Vraag om `last-breakdown.png` en `last-analysis.txt`.
+  Voorstel zonder antwoord van Sem: alleen melden, de waarde niet bijstellen.
+- **Open: Windows Defender / browser "virus detected"** op de Windows-zip. Vermoedelijk vals alarm (niet-ondertekende
+  exe die geheugen van fm.exe leest en schrijft); niet door Microsoft bevestigd. Oplossingen: indienen bij Microsoft
+  als vals alarm (moet Sem zelf doen) of code-signing.
+- GitHub #5 staat open tot de melder bevestigt. Op Windows heeft de app geen startknop voor FM (alleen de Mac).
+- Antwoordteksten voor forums: Engels, in een codeblok (geen citaatopmaak), zodat Sem ze kan kopiëren.
+- Sem's Obsidian-kluis staat in `/Users/semhiel/Documents/Obsidian/Sem` (projectnotitie `Projecten/FM27 Trainer.md`).
+
+## FM-update van 17 nov 2026 (Steam 26620374) en versie 0.2.8 (uitgebracht op 17 nov 2026)
+
+- Uitgebracht: commit `e09460c`, tag `v0.2.8` op `origin` en `dev`, Mac-DMG (genotariseerd) en Windows-zip. GitHub #6
+  beantwoord (open tot de melder bevestigt); sortitoutsi-post bijgewerkt (via de CKEditor-instantie op de
+  bewerkpagina) en één reactie geplaatst voor Likes Banter Clubs, toomuchcoldbrew en Lajos Dijkstra. Wachten op
+  meldingen of Windows weer verbindt.
+
+- Meldingen "verbindt niet na de update" (GitHub #6, sortitoutsi). **Oorzaak**: in het financiënblok staat
+  corporate niet meer op `+0x8A9` maar op `+0x8AD` (Tottenham 20, Ajax 18; `+0x8A9` is bij elke club 0).
+  `finance_looks_real` eiste 1–20 op `+0x8A9` en keurde dus elke managerketen af, ook in de eigen zoektocht
+  (`discover`) en via RTTI. Nu mag het op beide plekken (`FIN_CORPORATE`). Saldo, budgetten en ticketprijs zijn
+  niet verschoven; de rest van de objectindeling las op de Mac gewoon goed.
+- Mac arm64 `869F5F90-FD89-3606-8AE4-2B4A7F02F324`: staf 0x57A3010, clubs 0x57A3180, datum 0x5781DC8 (zelf
+  gemeten, `discover` geeft `same: true`). **Live getest** (Ajax-save, 18 okt 2028): club, selectie, kalender
+  (97 weken), teams, clubs, tactisch begrip, tactiek; datum en budgetten gelijk aan FM's scherm; `set_finances` +1,
+  `inspire` 18→20, `set_week` één dag, elk met `undo` en exact terug; `sell` en `max_understanding` als `dry_run`.
+  Schrijven staat aan. Intel-helft (`864625AF-9AA9-3254-8EC5-47E9D486132A`) en **Windows: geen profiel, niet
+  getest**; die moeten het met `discover` doen (alleen lezen tot `allow_untested`). Of de verschuiving op Windows
+  dezelfde is, is een aanname (financiën zijn tot nu toe op beide platforms gelijk). FMLibreEditor had op 17 nov
+  nog geen profiel: overnemen in `BUILDS` zodra het er is.
+- Bij een volgende patch waarin "geen menselijke manager" verschijnt terwijl een save geladen is: eerst de keten
+  met de hand nalopen (`census` op `HUMAN_NON_PLAYER` → `find_ptr` op de vtable → contract `+0x4B0` op de Mac →
+  team → club → financiën); de strenge controles in `check_chain` zijn de eerste verdachte.
+- Nieuw: Instellingen → Planner → "Geen tactische sessies" (`PlannerSettings.no_tactical`, verzoek op sortitoutsi
+  van iemand die "Op 100 % houden" gebruikt): tactische plekken gaan naar ontwikkelsessies (`DEVELOPMENT` in
+  `planner.rs`); wedstrijd-, herstel- en rustdagen blijven gelijk. Test `no_tactical_sessions` (nu 11 tests in
+  de app). Niet in FM's kalender nagekeken.
+- 17 nov, avond: Likes Banter Clubs bevestigt op sortitoutsi dat 0.2.8 op **Windows Steam** weer verbindt (dus via
+  `discover`; schrijven niet bevestigd). Open: nicolas montiel, "no human manager with a club found" ook na opnieuw
+  installeren; platform en versie onbekend, om details gevraagd (comment_917651). Vermoeden: Game Pass, niet bevestigd.
+- Open: Lajos Dijkstra (sortitoutsi, Windows, "latest version", verbindt niet; eerste melding van vóór de update).
+  Op 17 nov om details gevraagd (Steam of Game Pass, save geladen, statusregel).
+
+## Mac-opname (13 nov 2026, uitgebracht in 0.2.7)
 
 - Melding van Sem: "No Football Manager window found" terwijl FM draaide. Oorzaak: xcap vraagt alleen vensters op
   die nu in beeld zijn (en slaat vensters zonder titel over, dus alles zonder Schermopname-toestemming). FM stond
@@ -174,7 +223,7 @@ met `expect`), `discover`. Zie `agent/src/lib.rs`.
   kwam in een lopende wedstrijd van Sem terecht. Een opname van het FM-venster maken kan wel zonder iets aan te
   raken (`fm27-trainer windows <png>`).
 
-## Meer managers, andere teams en rustniveau (16 nov 2026, in 0.2.7, nog niet uitgebracht)
+## Meer managers, andere teams en rustniveau (16 nov 2026, uitgebracht in 0.2.7)
 
 - Aanleiding: sortitoutsi-reacties ("tweede team leest de meters goed uit maar zet de training niet", "doet hij
   ook de jeugdteams?", "verschillende rustniveaus"). De app nam altijd de **eerste** menselijke manager met een
@@ -195,7 +244,7 @@ met `expect`), `discover`. Zie `agent/src/lib.rs`.
   undo) en een plannertest. **Niet live getest**: of FM voor een jeugd- of B-team een eigen weeklijst bijhoudt,
   is niet gemeten. Er is één set uitgelezen waarden; die wordt niet per team bewaard.
 
-## Intel-Mac start niet (GitHub #5, 16 nov 2026, opgelost in 0.2.7, nog niet uitgebracht)
+## Intel-Mac start niet (GitHub #5, 16 nov 2026, uitgebracht in 0.2.7)
 
 - 0.2.6 crashte bij het starten op een Intel-Mac (macOS 15): `Library not loaded: @rpath/libswiftCoreMedia.dylib`,
   `no LC_RPATH's found`. Nagekeken op de uitgebrachte DMG: alleen de x86_64-helft had die koppeling (via xcap →
@@ -423,3 +472,10 @@ FM27 gebruikt nepnamen voor clubs zonder licentie: AC Milan = **Casciavit Milano
   Met `FM27_SNAPSHOT` slaat de app het automatisch bijhouden van training over (sinds 8 nov 2026): een testopname
   schrijft nooit in FM. Zonder die variabele schrijft een gestarte app met "automatisch bijhouden" aan binnen
   enkele seconden het trainingsplan in FM; houd daar rekening mee bij tests tegen een echte save.
+
+## Donaties (17 nov 2026)
+
+- Ko-fi-pagina van Sem: `https://ko-fi.com/semhiel` (PayPal/Stripe op 17 nov nog niet gekoppeld). De link staat in
+  `.github/FUNDING.yml`, de README ("Support"), de sortitoutsi-post (kopje "Support" boven "Credits") en in de app
+  (Instellingen → "Steun de ontwikkeling", `DONATE_URL` in `app/src/gui.rs`; komt mee in de versie ná 0.2.8).
+  In sortitoutsi's voorwaarden stond niets over donatielinks.

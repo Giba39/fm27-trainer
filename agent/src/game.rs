@@ -134,7 +134,10 @@ pub(crate) const FIN_TRANSFER: u64 = 0x7C4;
 const FIN_TOTAL_WAGE: u64 = 0x808;
 const FIN_WAGE: u64 = 0x814;
 const FIN_TICKET: u64 = 0x864;
-const FIN_CORPORATE: u64 = 0x8A9;
+/// Corporate facilities (u8 1–20), alleen als controle gebruikt. Tot en met Steam-build 26577676 op
+/// 0x8A9; in 26620374 (17 nov 2026) staat het 4 verder (gemeten op de Mac: Tottenham 20, Ajax 18, en
+/// 0x8A9 is daar bij elke club 0). Door die verschuiving vond de app na de update geen manager meer.
+const FIN_CORPORATE: [u64; 2] = [0x8A9, 0x8AD];
 
 const INJ_KIND: u64 = 0x08;
 const INJ_KIND_NAME: u64 = 0x18;
@@ -180,6 +183,14 @@ pub const BUILDS: &[Build] = &[
     Build { id: "PE-6AE8B5A4-17CB9000", label: "Steam 26385295 Windows", writes_tested: true, current_date: 0x57CA3B8, staff: 0x5820858, clubs: 0x58209C8 },
     Build { id: "PE-6AF38E5C-185FA000", label: "Steam 26577676 Windows", writes_tested: true, current_date: 0x57CA3B8, staff: 0x5820858, clubs: 0x58209C8 },
     Build { id: "PE-6AE8CF77-17969000", label: "Game Pass 0.9.2435.0 Windows", writes_tested: true, current_date: 0x53597C8, staff: 0x53B7E28, clubs: 0x53B7F98 },
+    // ---- update van 17 nov 2026 (Steam 26620374) ----
+    // Zelf gemeten op de Mac (17 nov 2026, Ajax-save in oktober 2028): de lijsten liggen 0x34178 verder,
+    // het clubpaar nog steeds 0x170 achter het stafpaar; de eigen zoektocht (`discover`) vond dezelfde
+    // adressen. FMLibreEditor had nog geen profiel. Live getest: lezen (club, selectie, kalender, teams,
+    // clubs, tactisch begrip, tactiek; datum en budgetten gelijk aan FM's scherm), budget, moraal en één
+    // trainingsdag elk met undo en exact terug; verkopen en tactisch begrip als droge controle.
+    // Windows en de Intel-helft van deze update: geen profiel, die zoekt de app zelf op (alleen lezen).
+    Build { id: "869F5F90-FD89-3606-8AE4-2B4A7F02F324", label: "Steam 26620374 macOS arm64", writes_tested: true, current_date: 0x5781DC8, staff: 0x57A3010, clubs: 0x57A3180 },
     // Intel-helft van de Mac-versie (Intel-Macs, of Apple silicon onder Rosetta): nooit door dit project getest
     Build { id: "0981AB31-AC3B-3D93-944F-47FE4B59CD9E", label: "Steam 26340721 macOS Intel", writes_tested: false, current_date: 0x5C69700, staff: 0x5C89210, clubs: 0x5C89380 },
     Build { id: "94CDDC80-8474-327A-85E0-E4FF95DC6893", label: "Steam 26385295 macOS Intel", writes_tested: false, current_date: 0x5CE3700, staff: 0x5D03230, clubs: 0x5D033A0 },
@@ -548,9 +559,10 @@ fn check_chain(h: u64) -> Option<Chain> {
 }
 
 pub(crate) fn finance_looks_real(f: u64) -> bool {
+    let corp = FIN_CORPORATE.iter().filter_map(|o| mem::u8_at(f + o)).find(|c| (1..=20).contains(c));
     let (Some(tp), Some(corp), Some(tb), Some(wb), Some(twb)) = (
         mem::f32_at(f + FIN_TICKET),
-        mem::u8_at(f + FIN_CORPORATE),
+        corp,
         mem::i32_at(f + FIN_TRANSFER),
         mem::i32_at(f + FIN_WAGE),
         mem::i32_at(f + FIN_TOTAL_WAGE),

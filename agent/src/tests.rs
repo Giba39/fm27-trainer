@@ -725,7 +725,7 @@ fn build_market(abi: Abi, l: &Layout, base: u64, staff_rva: u64, clubs_rva: u64,
         h.put(f + 0x808, &900_000i32.to_le_bytes());
         h.put(f + 0x814, &850_000i32.to_le_bytes());
         h.put(f + 0x864, &45.0f32.to_le_bytes());
-        h.w8(f + 0x8A9, 15);
+        h.w8(f + 0x8AD, 15); // de plek van build 26620374; de eigen club hierboven heeft de oude
         f
     };
     let club = |h: &mut Heap, uid: u32, name: &str, fin: u64, women: u8| {

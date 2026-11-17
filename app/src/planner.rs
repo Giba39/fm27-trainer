@@ -146,6 +146,10 @@ pub struct PlannerSettings {
     /// Hoeveel rust het plan geeft.
     #[serde(default)]
     pub load: Load,
+    /// Geen sessies voor Tactical Understanding: die plekken gaan naar spelersontwikkeling. Voor
+    /// wie het tactisch begrip al op 100 % laat houden ("Op 100 % houden" op de Selectie-pagina).
+    #[serde(default)]
+    pub no_tactical: bool,
 }
 
 fn default_block() -> u32 {
@@ -154,7 +158,7 @@ fn default_block() -> u32 {
 
 impl Default for PlannerSettings {
     fn default() -> Self {
-        PlannerSettings { bonding_below: 60.0, set_pieces_every: 0, gain_per_session: 2.2, decay_per_week: 0.8, replan_every_weeks: 4, load: Load::Balanced }
+        PlannerSettings { bonding_below: 60.0, set_pieces_every: 0, gain_per_session: 2.2, decay_per_week: 0.8, replan_every_weeks: 4, load: Load::Balanced, no_tactical: false }
     }
 }
 
@@ -245,6 +249,19 @@ pub fn default_calendar(opts: &CalendarOptions) -> Vec<CalendarWeek> {
 const MATCH_PREP_IP: [&str; 3] = ["Press Avoidance", "Ball Progression", "Final Third"];
 const MATCH_PREP_OOP: [&str; 3] = ["Defensive Block", "Defensive Positioning", "Defensive Engagement"];
 const SET_PIECES: [&str; 3] = ["Corners", "Free Kicks", "Penalties"];
+/// Spelersontwikkeling in plaats van tactische sessies (`no_tactical`), afwisselend aanvallend,
+/// verdedigend en balbezit.
+const DEVELOPMENT: [&str; 9] = [
+    "Attacking Ball Work",
+    "Defensive Ball Work",
+    "Possession Ball Work",
+    "Technical - Chance Creation",
+    "Technical - Ground Defence",
+    "Technical - Ball Retention",
+    "Transition - Progress",
+    "Transition - Press",
+    "Individual Development",
+];
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Slot {
@@ -279,6 +296,11 @@ impl WeekState<'_> {
 
     /// Kies het tactische gebied met het grootste resterende tekort (niet al vandaag gekozen).
     fn pick_tactical(&mut self, today: &[String]) -> Option<String> {
+        if self.settings.no_tactical {
+            // de minst gebruikte ontwikkelsessie die vandaag nog niet staat
+            let name = DEVELOPMENT.iter().filter(|n| !today.iter().any(|t| t == *n)).min_by_key(|n| self.used(n)).copied()?;
+            return Some(self.take(name));
+        }
         if self.tactical_total() >= 16 {
             return None; // categorielimiet Tactical Understanding
         }
@@ -323,7 +345,7 @@ impl WeekState<'_> {
         }
         // erg lage tactical understanding: extra tactische sessie, anders individuele ontwikkeling
         let tu = (self.eff.phase_score(Phase::InPossession) + self.eff.phase_score(Phase::OutOfPossession)) / 2.0;
-        if tu < 45.0 {
+        if tu < 45.0 && !self.settings.no_tactical {
             if let Some(t) = self.pick_tactical(today) {
                 return t;
             }
@@ -482,7 +504,11 @@ pub fn plan_week(
     let mut top: Vec<(Factor, u32)> = targets.clone();
     top.sort_by(|a, b| b.1.cmp(&a.1));
     let abbrev: Vec<&str> = top.iter().take(2).map(|(f, _)| short(*f)).collect();
-    let schedule_name = format!("TE {}W {} {}", matches, focus_short(focus), abbrev.join("+"));
+    let schedule_name = if settings.no_tactical && !matches!(week.kind, WeekKind::OffSeason) {
+        format!("TE {}W Dev", matches)
+    } else {
+        format!("TE {}W {} {}", matches, focus_short(focus), abbrev.join("+"))
+    };
 
     WeekPlan {
         start: week.start,
@@ -580,6 +606,31 @@ pub fn unique_schedules(plans: &[WeekPlan]) -> Vec<(String, Vec<NaiveDate>, &Wee
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Zonder tactische sessies: geen enkele sessie voor Tactical Understanding, in welke week dan
+    /// ook; wedstrijd-, herstel- en rustdagen blijven zoals ze waren.
+    #[test]
+    fn no_tactical_sessions() {
+        let eff = Effectiveness::default();
+        let on = PlannerSettings { no_tactical: true, load: Load::Intense, ..Default::default() };
+        let off = PlannerSettings { load: Load::Intense, ..Default::default() };
+        let cal = default_calendar(&CalendarOptions { start: NaiveDate::from_ymd_opt(2027, 7, 1).unwrap(), ..Default::default() });
+        let (with, without) = (plan_year(&cal, &eff, &on), plan_year(&cal, &eff, &off));
+        let tactical = |p: &[WeekPlan]| p.iter().flat_map(|w| w.days.iter()).flat_map(|d| d.slots.iter()).filter(|s| Factor::TACTICAL_AREAS.iter().any(|f| f.label() == *s)).count();
+        assert!(tactical(&without) > 100);
+        assert_eq!(tactical(&with), 0);
+        for (a, b) in with.iter().zip(&without) {
+            assert!(a.targets.is_empty());
+            for (x, y) in a.days.iter().zip(&b.days) {
+                for n in &x.slots {
+                    assert!(crate::model::SESSIONS.iter().any(|s| s.name == n), "onbekende sessie {n}");
+                }
+                if matches!(x.role, DayRole::Match | DayRole::Recovery | DayRole::Holiday) {
+                    assert_eq!(x.slots, y.slots, "{:?}", x.role);
+                }
+            }
+        }
+    }
 
     /// Meer rust: trainingsdagen en de dag voor de wedstrijd eindigen met Rest; minder rust: na
     /// Recovery op de dag na de wedstrijd een tactische sessie. Wedstrijddagen blijven gelijk.

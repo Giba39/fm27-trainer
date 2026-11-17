@@ -49,6 +49,14 @@ simulated memory for tests), `rtti.rs` (Itanium and MSVC RTTI) and `game.rs` (la
   training day, each with undo; sell/buy as dry runs). The Windows builds have writes on by FMLibreEditor's
   finding that the object layout is unchanged (not live-tested by this project yet); 26385295 on the Mac and the
   Intel halves are read-only until allowed.
+- Update of 17 Nov 2026 (Steam 26620374): macOS arm64 `869F5F90-FD89-3606-8AE4-2B4A7F02F324` has staff
+  `0x57A3010`, clubs `0x57A3180`, date `0x5781DC8` (measured by this project; `discover` finds the same). The
+  finance block changed: corporate facilities moved from `+0x8A9` to `+0x8AD` (Tottenham 20, Ajax 18; `+0x8A9` is 0
+  for every club). `finance_looks_real` required 1–20 at `+0x8A9`, so every manager chain was rejected and the app
+  did not connect; it now accepts either place. Balance, budgets and ticket price did not move. Live-tested on
+  the Mac on 17 Nov 2026 (reads match FM's screen; budget, morale, one training day each with undo; sell and
+  understanding as dry runs). Windows and the Intel half have no profile for this update (discovery, read-only)
+  and are untested.
 - **Unknown build** (after a patch): `game::statics` looks the statics up itself (`discover`). In all 11 measured
   profiles the clubs pair sits `0x170` after the staff pair, so it scans the image for two pointer-list pairs at
   that distance, where the second holds clubs (name readable) and the first holds a manager whose chain

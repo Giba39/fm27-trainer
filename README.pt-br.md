@@ -39,6 +39,8 @@ O FM27 introduziu a **Eficácia Tática**: quatro áreas fundamentais (Entendime
 * **Página de Táticas & Melhor Onze (Novo na v0.2.7):** Lê suas táticas cadastradas no FM27, calcula a aptidão de cada jogador na sua função com e sem bola, sugere a melhor escalação titular possível para a tática e aponta funções mais adequadas aos atributos de cada atleta.
 * **Planejamento de Treino Automático:** O app agenda os treinos respeitando dias de descanso, recuperação pós-jogo e dias de viagem, inserindo as sessões táticas nas fraquezas do elenco.
   * **Ajuste de Carga e Descanso:** Escolha entre *Mais descanso* (termina dias com descanso), *Equilibrado* ou *Menos descanso* (adiciona sessão tática pós-jogo).
+  * **Modo Desenvolvimento (Novo na v0.2.8):** Opção *Sem sessões táticas* para direcionar todos os treinos ao desenvolvimento técnico dos atletas.
+* **Compatibilidade com o FM27 Atualizado:** Totalmente adaptado para a atualização de 17 de novembro de 2026 do Football Manager 27.
 * **Múltiplos Treinadores & Categorias de Base:** Selecione qual treinador humano gerenciar em saves múltiplos, ou selecione times de base (Sub-21, Sub-18, Time B) para planejar seus treinos.
 * **Gestão de Elenco & Clube:**
   * Cura instantânea de lesões (individual ou de todo o elenco).

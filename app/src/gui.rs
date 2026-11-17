@@ -2258,6 +2258,18 @@ impl App {
                     }))
                     .wrap(),
                 );
+                ui.add_space(6.0);
+                dirty |= ui
+                    .checkbox(&mut self.settings.planner.no_tactical, t!("Geen tactische sessies", "No tactical sessions", "Sem sessões táticas"))
+                    .changed();
+                ui.add(
+                    egui::Label::new(theme::dim(t!(
+                        "Die plekken gaan naar spelersontwikkeling; wedstrijdvoorbereiding blijft. Bedoeld voor wie het tactisch begrip op 100 % laat houden (Selectie).",
+                        "Those slots go to player development; match preparation stays. Meant for use with \"Keep at 100 %\" for tactical understanding (Squad).",
+                        "Esses horários são dedicados ao desenvolvimento de jogadores; a preparação de jogo é mantida. Recomendado para quem usa \"Manter em 100%\" na Compreensão Tática (Elenco)."
+                    )))
+                    .wrap(),
+                );
             });
         });
         ui.add_space(14.0);
@@ -2321,6 +2333,21 @@ impl App {
                     open_path(std::path::Path::new("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"));
                 }
             });
+        });
+        ui.add_space(14.0);
+        theme::card(ui, |ui| {
+            ui.label(theme::h2(t!("Steun de ontwikkeling", "Support development", "Apoie o desenvolvimento")));
+            ui.add_space(6.0);
+            ui.add(egui::Label::new(theme::dim(t!(
+                "FM27 Trainer is gratis en blijft gratis. Wil je iets terugdoen voor het werk, dan kan dat met een donatie. Alle functies werken ook zonder.",
+                "FM27 Trainer is free and stays free. If you want to give something back for the work, you can donate. Every feature works without it.",
+                "O FM27 Trainer é e sempre continuará gratuito. Se desejar apoiar o trabalho do desenvolvedor, você pode fazer uma doação. Todas as funções continuam 100% disponíveis sem doar."
+            )))
+            .wrap());
+            ui.add_space(6.0);
+            if theme::button(ui, icon::HEART, t!("Doneer via Ko-fi", "Donate on Ko-fi", "Apoiar via Ko-fi"), true).clicked() {
+                open_path(std::path::Path::new(DONATE_URL));
+            }
         });
         ui.add_space(14.0);
         theme::card(ui, |ui| {
@@ -2397,6 +2424,9 @@ impl eframe::App for App {
 }
 
 // ------------------------------------------------------------------------ helpers
+
+/// Donatiepagina (knop op Instellingen).
+const DONATE_URL: &str = "https://ko-fi.com/semhiel";
 
 fn open_path(p: &std::path::Path) {
     #[cfg(target_os = "macos")]

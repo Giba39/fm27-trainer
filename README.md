@@ -105,7 +105,9 @@ Step by step, with what to do when the app does not connect: **[Getting started 
 > Live-tested on the Steam build of November 2026 (26340721): reading, budgets, morale, injuries, training and
 > selling, each with undo. FM27 from the Xbox app / Game Pass (0.9.2409.0, the same update) is recognised too, with
 > the same checks; it has not been live-tested on Game Pass yet. The full release of 10 November and the update of
-> 12 November (Steam 26385295 and 26577676, Game Pass 0.9.2435.0) are recognised as well. FM on an Xbox console
+> 12 November (Steam 26385295 and 26577676, Game Pass 0.9.2435.0) are recognised as well. The update of 17 November
+> (Steam 26620374) is live-tested on the Mac; on Windows the app finds the lists by itself (read-only until you
+> allow changes, not tested there yet). FM on an Xbox console
 > cannot be read: FM has to run on the same PC. After an FM patch the app keeps reading (it finds the game's lists
 > by itself) but is read-only until the new build has been checked; you can allow changes yourself in Settings
 > (back up your save first).
@@ -145,6 +147,11 @@ the macOS DMG and a Windows zip for every `v*` tag.
 
 Project layout: `app/` (the app: egui UI, OCR, planner, live client), `agent/` (the module that runs inside
 FM), `tools/` (scripts for FM's `.fmf` archives and binary JSON), `docs/`.
+
+## Support
+
+FM27 Trainer is free and stays free. If it saves you time and you want to give something back, you can
+[donate on Ko-fi](https://ko-fi.com/semhiel). Every feature works without it.
 
 ## Roadmap
 
